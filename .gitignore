@@ -1,0 +1,17 @@
+.DS_Store
+Thumbs.db
+restored-research/
+.build/
+DerivedData/
+build/
+.env
+.env.*
+!.env.example
+*.xcuserstate
+xcuserdata/
+
+# Локальные материалы; публичная загрузка требует отдельного согласования.
+installers/
+research/static-analysis.zip
+research/application-pe.txt
+research/hidserv-pe.txt
