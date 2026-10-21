@@ -4,12 +4,14 @@
     {
       "path": "installers/Rdragon K530RGB Keyboard - Port.exe",
       "size": 13275502,
-      "sha256": "de4b11b71805fc0ea76452a7c9fbe74b67a044e3a67caa538b548a3041f4c573"
+      "sha256": "de4b11b71805fc0ea76452a7c9fbe74b67a044e3a67caa538b548a3041f4c573",
+      "availability": "repository"
     },
     {
       "path": "research/static-analysis.zip",
       "size": 28840672,
-      "sha256": "b18d2c5ea69f95c3444b61d6bf3d11fe41372cffc6bf918c957846859e67755b"
+      "sha256": "b18d2c5ea69f95c3444b61d6bf3d11fe41372cffc6bf918c957846859e67755b",
+      "availability": "local_only"
     }
   ]
 }

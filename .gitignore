@@ -11,7 +11,6 @@ build/
 xcuserdata/
 
 # Локальные материалы; публичная загрузка требует отдельного согласования.
-installers/
 research/static-analysis.zip
 research/application-pe.txt
 research/hidserv-pe.txt
