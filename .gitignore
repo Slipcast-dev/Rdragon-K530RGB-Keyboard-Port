@@ -14,3 +14,9 @@ xcuserdata/
 research/static-analysis.zip
 research/application-pe.txt
 research/hidserv-pe.txt
+
+# Локальные настройки Claude Code
+.claude/
+__pycache__/
+*.pyc
+.build.log
