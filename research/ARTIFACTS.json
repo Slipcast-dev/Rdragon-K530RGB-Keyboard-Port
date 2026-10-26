@@ -2,10 +2,10 @@
   "created": "2026-10-21",
   "artifacts": [
     {
-      "path": "installers/Rdragon K530RGB Keyboard - Port.exe",
+      "path": "Rdragon K530RGB Keyboard - Port.exe",
       "size": 13275502,
       "sha256": "de4b11b71805fc0ea76452a7c9fbe74b67a044e3a67caa538b548a3041f4c573",
-      "availability": "repository"
+      "availability": "local-only"
     },
     {
       "path": "research/static-analysis.zip",
