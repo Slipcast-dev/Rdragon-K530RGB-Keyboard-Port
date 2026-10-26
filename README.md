@@ -6,7 +6,7 @@
   <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white">
   <img alt="USB" src="https://img.shields.io/badge/подключение-USB-informational">
   <img alt="Статус" src="https://img.shields.io/badge/статус-0.1%20(альфа)-orange">
-  <img alt="Репозиторий приватный" src="https://img.shields.io/badge/репозиторий-приватный-lightgrey">
+  <img alt="Репозиторий публичный" src="https://img.shields.io/badge/репозиторий-публичный-brightgreen">
 </p>
 
 # K530 Lighting — подсветка Redragon K530 RGB на macOS

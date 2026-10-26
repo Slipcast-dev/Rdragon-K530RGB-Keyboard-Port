@@ -20,3 +20,11 @@ research/hidserv-pe.txt
 __pycache__/
 *.pyc
 .build.log
+
+# Ключи, сертификаты и профили подписи
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
