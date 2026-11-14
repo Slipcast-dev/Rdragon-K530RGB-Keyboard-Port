@@ -113,10 +113,78 @@ final class LightingController: ObservableObject {
     @Published var autostart = false
     @Published private(set) var needsPermission = false
     var restartApplication: () -> Void = {}
+    @Published private(set) var profileDocument = LightingProfileDocument.defaults()
+    @Published private(set) var profileError: String?
+    private let profileStore: LightingProfileStore
+    private var profileDrafts: [UUID: LightingSettings] = [:]
+    private var hasStoredProfiles = false
     private let service = LightingDeviceService()
     private var generation = 0
     private var saved: LightingSettings?
     var hasChanges: Bool { saved != draft }
+    var profiles: [LightingProfile] { profileDocument.profiles }
+    var selectedProfileID: UUID { profileDocument.selectedID }
+    var selectedProfile: LightingProfile? { profiles.first { $0.id == selectedProfileID } }
+    var hasUnsavedProfileChanges: Bool { selectedProfile?.settings != draft }
+
+    init(profileStore: LightingProfileStore = LightingProfileStore()) {
+        self.profileStore = profileStore
+        do {
+            if let document = try profileStore.load() {
+                profileDocument = document; hasStoredProfiles = true
+            }
+            draft = selectedProfile?.settings ?? LightingSettings()
+        } catch { profileError = "Профили: \(error.localizedDescription)" }
+    }
+
+    /// Переключение хранит несохранённый черновик каждого набора отдельно.
+    /// Выбор сам по себе не отправляет команды в клавиатуру.
+    func selectProfile(_ id: UUID) {
+        guard !busy, !updaterBusy(), profiles.contains(where: { $0.id == id }) else { return }
+        profileDrafts[selectedProfileID] = draft
+        var document = profileDocument; document.selectedID = id
+        guard persistProfiles(document) else { return }
+        profileDocument = document
+        draft = profileDrafts[id] ?? selectedProfile!.settings
+    }
+
+    func saveProfile(name: String) {
+        guard !busy, !updaterBusy(), let index = profiles.firstIndex(where: { $0.id == selectedProfileID }) else { return }
+        var document = profileDocument
+        document.profiles[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        document.profiles[index].settings = draft
+        guard persistProfiles(document) else { return }
+        profileDocument = document; profileDrafts[selectedProfileID] = draft
+        message = "Профиль «\(document.profiles[index].name)» сохранён"
+    }
+
+    func createProfile() {
+        guard !busy, !updaterBusy() else { return }
+        profileDrafts[selectedProfileID] = draft
+        let profile = LightingProfile(name: "Профиль \(profiles.count + 1)", settings: draft)
+        var document = profileDocument; document.profiles.append(profile); document.selectedID = profile.id
+        guard persistProfiles(document) else { return }
+        profileDocument = document
+    }
+
+    func deleteProfile() {
+        guard !busy, !updaterBusy(), profiles.count > 1 else { return }
+        let removed = selectedProfileID
+        var document = profileDocument
+        document.profiles.removeAll { $0.id == removed }
+        document.selectedID = document.profiles[0].id
+        guard persistProfiles(document) else { return }
+        profileDrafts.removeValue(forKey: removed); profileDocument = document
+        draft = profileDrafts[selectedProfileID] ?? document.profiles[0].settings
+    }
+
+    @discardableResult
+    private func persistProfiles(_ document: LightingProfileDocument) -> Bool {
+        do {
+            try profileStore.save(document); profileError = nil; hasStoredProfiles = true
+            return true
+        } catch { profileError = "Профили: \(error.localizedDescription)"; return false }
+    }
     var showHelp: () -> Void = {}
     var checkUpdates: () -> Void = {}
     var updaterBusy: () -> Bool = { false }
@@ -149,7 +217,7 @@ final class LightingController: ObservableObject {
         guard !busy, !updaterBusy() else { return }
         let operationGeneration = generation
         let preserveDraft: Bool
-        if case .read = action { preserveDraft = saved != nil && hasChanges }
+        if case .read = action { preserveDraft = hasStoredProfiles || hasUnsavedProfileChanges || (saved != nil && hasChanges) }
         else { preserveDraft = false }
         busy = true; error = false
         message = "Обмен с клавиатурой…"

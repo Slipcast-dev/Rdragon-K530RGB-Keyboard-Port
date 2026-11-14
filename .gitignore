@@ -28,3 +28,6 @@ __pycache__/
 *.cer
 *.mobileprovision
 *.provisionprofile
+
+# Воспроизводимые локальные установщики и архивы
+/dist/

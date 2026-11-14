@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updater = AppUpdater()
     private var window: NSWindow!
     private var statusItem: NSStatusItem!
+    private var statusMenu: StatusMenuController!
     private let discovery = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -22,7 +23,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 640),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "K530 Lighting"
+        // Собственный текст в поддерживаемом titlebar accessory не зависит
+        // от цвета системного заголовка или пользовательской темы macOS.
+        window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = false
+        let titlebar = NSTitlebarAccessoryViewController()
+        titlebar.layoutAttribute = .right
+        let title = NSTextField(labelWithString: "K530 Lighting")
+        title.textColor = .white; title.font = .systemFont(ofSize: 12, weight: .semibold)
+        title.alignment = .center
+        title.frame = NSRect(x: 0, y: 2, width: 160, height: 20)
+        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 160, height: 24))
+        titleContainer.addSubview(title); titlebar.view = titleContainer
+        window.addTitlebarAccessoryViewController(titlebar)
         window.backgroundColor = NSColor(srgbRed: 0.055, green: 0.067, blue: 0.086, alpha: 1)
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
@@ -31,13 +44,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = hosting.fittingSize
         window.setContentSize(NSSize(width: 740, height: max(620, size.height)))
         window.center()
+        statusMenu = StatusMenuController(model: model, updater: updater)
+        statusMenu.openWindow = { [weak self] in self?.showPanel() }
+        statusMenu.closeWindow = { [weak self] in self?.window.orderOut(nil) }
+        statusMenu.didClose = { [weak self] in self?.statusItem.menu = nil }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             if let url = Bundle.main.url(forResource: "StatusIcon@2x", withExtension: "png"),
                let image = NSImage(contentsOf: url) {
                 image.size = NSSize(width: 18, height: 18); image.isTemplate = true; button.image = image
             } else { button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "K530 Lighting") }
-            button.target = self; button.action = #selector(showPanel)
+            button.target = self; button.action = #selector(statusButtonClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.toolTip = "K530 Lighting — управление подсветкой"
         }
         if IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
@@ -63,10 +81,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater.start()
     }
 
+    @objc private func statusButtonClicked() {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            statusItem.menu = statusMenu.makeMenu()
+            statusItem.button?.performClick(nil)
+        } else { showPanel() }
+    }
+
     @objc private func showPanel() {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         if !model.connected { model.refresh() }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPanel(); return true
     }
 
     @objc private func becameActive() {

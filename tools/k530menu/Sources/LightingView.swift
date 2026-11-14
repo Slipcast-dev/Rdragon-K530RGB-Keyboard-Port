@@ -13,43 +13,50 @@ struct LightingView: View {
     @ObservedObject var updater: AppUpdater
     @State private var hexInput = "#00E5FF"
     @State private var invalidHex = false
+    @State private var showingProfiles = false
     private var color: Color {
         Color(.sRGB, red: Double(model.draft.red) / 255,
               green: Double(model.draft.green) / 255, blue: Double(model.draft.blue) / 255)
     }
 
     var body: some View {
-        ScrollView(.vertical) {
-        VStack(alignment: .leading, spacing: 20) {
-            header
-            if model.needsPermission { permissionNotice }
-            KeyboardPreview(color: model.draft.usesColor ? color : Theme.cyan,
-                            brightness: model.draft.brightness, colourful: model.draft.colourful)
-                .frame(width: 470, height: 168).frame(maxWidth: .infinity)
-                .accessibilityLabel("Предпросмотр цвета подсветки; не редактор отдельных клавиш")
-            Text("Предпросмотр цвета").font(.system(size: 10)).foregroundColor(Theme.muted)
-                .frame(maxWidth: .infinity).padding(.top, -12)
-            Divider()
-            controls.disabled(model.busy || updater.isBusy)
-            Divider()
-            HStack {
-                Label("Запись во все 3 профиля", systemImage: "square.3.stack.3d")
-                    .font(.system(size: 11)).foregroundColor(Theme.muted)
-                Spacer()
-                Button("Вернуть исходное", action: model.restore)
-                    .disabled(!model.canRestore || model.busy || updater.isBusy)
-                Button(action: model.apply) {
-                    Text("Применить").fontWeight(.semibold).foregroundColor(.black)
-                        .padding(.horizontal, 18).padding(.vertical, 9)
-                        .background(Theme.cyan).cornerRadius(8)
-                }.buttonStyle(PlainButtonStyle())
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(!model.connected || model.busy || !model.hasChanges || updater.isBusy)
-                    .opacity(model.connected && model.hasChanges ? 1 : 0.45)
+        VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    if model.needsPermission { permissionNotice }
+                    KeyboardPreview(color: model.draft.usesColor ? color : Theme.cyan,
+                                    brightness: model.draft.brightness, colourful: model.draft.colourful)
+                        .frame(width: 470, height: 168).frame(maxWidth: .infinity)
+                        .accessibilityLabel("Предпросмотр цвета подсветки; не редактор отдельных клавиш")
+                    Text("Предпросмотр цвета").font(.system(size: 10)).foregroundColor(Theme.muted)
+                        .frame(maxWidth: .infinity).padding(.top, -10)
+                    Divider()
+                    controls.disabled(model.busy || updater.isBusy)
+                    Divider()
+                    HStack(spacing: 12) {
+                        Text(model.selectedProfile?.name ?? "Профили")
+                            .font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
+                        if model.hasUnsavedProfileChanges {
+                            Text("• не сохранён").font(.system(size: 10)).foregroundColor(Theme.muted)
+                        }
+                        Spacer(minLength: 4)
+                        Button("Вернуть исходное", action: model.restore)
+                            .buttonStyle(PanelActionStyle(primary: false))
+                            .disabled(!model.canRestore || model.busy || updater.isBusy)
+                        Button("Применить", action: model.apply)
+                            .buttonStyle(PanelActionStyle(primary: true))
+                            .keyboardShortcut(.return, modifiers: .command)
+                            .disabled(!model.connected || model.busy || !model.hasChanges || updater.isBusy)
+                    }
+                }.padding(24).frame(maxWidth: .infinity)
             }
+            if updater.isBusy {
+                if let progress = updater.progress { ProgressView(value: progress).padding(.horizontal, 16) }
+                else { ProgressView().scaleEffect(0.5).frame(height: 12) }
+            }
+            Divider()
             status
-        }
-        .padding(24).frame(width: 740)
         }
         .frame(width: 740, height: 680)
         .background(Theme.background).foregroundColor(.white)
@@ -61,6 +68,8 @@ struct LightingView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 7) {
+                Text("K530 LIGHTING").font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundColor(Theme.cyan)
                 Text("Redragon K530").font(.system(size: 24, weight: .semibold))
                 HStack(spacing: 6) {
                     Circle().fill(model.connected ? Color.green : Theme.muted).frame(width: 6, height: 6)
@@ -69,6 +78,15 @@ struct LightingView: View {
                 }
             }
             Spacer()
+            Button { showingProfiles.toggle() } label: {
+                Label("Профили", systemImage: "square.stack")
+                    .font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.white.opacity(0.05)).cornerRadius(7)
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.white.opacity(0.15)))
+            }.buttonStyle(PlainButtonStyle())
+                .popover(isPresented: $showingProfiles, arrowEdge: .bottom) {
+                    LightingProfilesView(model: model, updater: updater)
+                }
             Menu {
                 Button("Перечитать устройство", action: model.refresh).disabled(model.busy || updater.isBusy)
                 Button(model.autostart ? "✓ Запускать при входе" : "Запускать при входе", action: model.toggleAutostart)
@@ -190,26 +208,28 @@ struct LightingView: View {
                 .foregroundColor(Theme.muted).frame(width: 55)
         }
     }
+    /// Строка закреплена вне ScrollView и остаётся у нижней границы окна.
+    /// Полные сообщения доступны в подсказках и VoiceOver при сокращении текста.
     private var status: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                if model.busy { ProgressView().scaleEffect(0.55).frame(width: 14, height: 14) }
-                else { Image(systemName: model.error ? "exclamationmark.circle" : "checkmark.circle")
-                    .foregroundColor(model.error ? .orange : Theme.muted) }
-                Text(model.hasChanges && !model.busy && !model.error && model.connected ? "Есть неприменённые изменения" : model.message)
-                    .font(.system(size: 11)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-            }
-            if !updater.message.isEmpty {
-                Text(updater.message).font(.system(size: 11)).foregroundColor(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if updater.isBusy {
-                if let progress = updater.progress { ProgressView(value: progress) }
-                else { ProgressView().scaleEffect(0.6).frame(height: 14) }
-            }
-        }.frame(maxWidth: .infinity, alignment: .leading)
+        let deviceMessage = model.hasChanges && !model.busy && !model.error && model.connected ?
+            "Есть неприменённые изменения" : model.message
+        return HStack(spacing: 12) {
+            Label("Запись во все 3 профиля", systemImage: "square.3.stack.3d")
+                .frame(width: 155, alignment: .leading)
+                .help("Настройки выбранного набора записываются во все три аппаратных профиля клавиатуры")
+            HStack(spacing: 5) {
+                Image(systemName: model.error ? "exclamationmark.circle" : model.busy ? "arrow.triangle.2.circlepath" : "checkmark.circle")
+                    .foregroundColor(model.error ? .orange : Theme.muted)
+                Text(model.profileError ?? deviceMessage)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+                .help(model.profileError ?? deviceMessage).accessibilityLabel(model.profileError ?? deviceMessage)
+            Text(updater.message).frame(width: 185, alignment: .trailing)
+                .help(updater.message).accessibilityLabel(updater.message)
+        }
+        .font(.system(size: 10)).foregroundColor(Theme.muted).lineLimit(1)
+        .truncationMode(.tail).padding(.horizontal, 20).frame(height: 38)
     }
+
 }
 
 /// Упрощённая ANSI 60% геометрия. Это индикатор общего цвета, без per-key управления.
@@ -244,5 +264,20 @@ struct KeyboardPreview: View {
             .frame(maxWidth: .infinity).frame(width: label.isEmpty ? 172 : nil, height: 26)
             .background(LinearGradient(gradient: Gradient(colors: [Color.white.opacity(0.075), Color.white.opacity(0.025)]), startPoint: .top, endPoint: .bottom))
             .cornerRadius(3).overlay(RoundedRectangle(cornerRadius: 3).stroke(tint.opacity(brightness * 0.045)))
+    }
+}
+
+/// Единые размеры, шрифт и контраст обеих основных кнопок, включая disabled.
+struct PanelActionStyle: ButtonStyle {
+    let primary: Bool
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.font(.system(size: 12, weight: .semibold))
+            .foregroundColor(primary && enabled ? Color.black : Color.white.opacity(enabled ? 0.9 : 0.5))
+            .frame(width: 154, height: 36)
+            .background(primary && enabled ? Theme.cyan : Color.white.opacity(enabled ? 0.07 : 0.04))
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(primary && enabled ? 0 : 0.14)))
+            .opacity(configuration.isPressed ? 0.75 : 1)
     }
 }
