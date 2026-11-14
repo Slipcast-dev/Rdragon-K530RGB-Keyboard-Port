@@ -3,7 +3,7 @@ import SwiftUI
 import IOKit.hid
 
 /// AppKit управляет жизненным циклом и строкой меню; содержимое окна — SwiftUI.
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let model = LightingController()
     private let updater = AppUpdater()
     private var window: NSWindow!
@@ -18,10 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.updaterBusy = { [weak self] in self?.updater.isBusy ?? false }
         updater.canStartUpdate = { [weak self] in !(self?.model.busy ?? true) }
         updater.onPresentationRequested = { [weak self] in self?.showPanel() }
+        configureApplicationMenu()
         model.loadAutostart()
         let content = LightingView(model: model, updater: updater)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 640),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        window.delegate = self
         window.title = "K530 Lighting"
         // Собственный текст в поддерживаемом titlebar accessory не зависит
         // от цвета системного заголовка или пользовательской темы macOS.
@@ -46,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         statusMenu = StatusMenuController(model: model, updater: updater)
         statusMenu.openWindow = { [weak self] in self?.showPanel() }
-        statusMenu.closeWindow = { [weak self] in self?.window.orderOut(nil) }
+        statusMenu.closeWindow = { [weak self] in self?.closePanel() }
         statusMenu.didClose = { [weak self] in self?.statusItem.menu = nil }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -81,6 +83,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updater.start()
     }
 
+    private func configureApplicationMenu() {
+        let mainMenu = NSMenu()
+        let root = NSMenuItem(); mainMenu.addItem(root)
+        let appMenu = NSMenu(title: "K530 Lighting")
+        let close = NSMenuItem(title: "Закрыть окно", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        close.target = nil; appMenu.addItem(close)
+        appMenu.addItem(.separator())
+        let quit = NSMenuItem(title: "Завершить K530 Lighting", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.target = NSApp; appMenu.addItem(quit)
+        root.submenu = appMenu
+        let editRoot = NSMenuItem(); mainMenu.addItem(editRoot)
+        let edit = NSMenu(title: "Правка")
+        for (title, action, key) in [
+            ("Вырезать", #selector(NSText.cut(_:)), "x"),
+            ("Копировать", #selector(NSText.copy(_:)), "c"),
+            ("Вставить", #selector(NSText.paste(_:)), "v"),
+            ("Выбрать всё", #selector(NSText.selectAll(_:)), "a")
+        ] {
+            edit.addItem(NSMenuItem(title: title, action: action, keyEquivalent: key))
+        }
+        editRoot.submenu = edit; NSApp.mainMenu = mainMenu
+    }
+
     @objc private func statusButtonClicked() {
         let event = NSApp.currentEvent
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
@@ -90,10 +115,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showPanel() {
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         if !model.connected { model.refresh() }
     }
+
+    @objc private func closePanel() { window.performClose(nil) }
+
+    /// Красная кнопка и «Закрыть окно» используют один жизненный цикл:
+    /// окно закрыто — убираем Dock, продолжая обслуживать значок строки меню.
+    func windowWillClose(_ notification: Notification) {
+        guard let closed = notification.object as? NSWindow, closed === window else { return }
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showPanel(); return true

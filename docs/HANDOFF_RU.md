@@ -1,6 +1,6 @@
 # Передача контекста для продолжения разработки
 
-## Актуализация: 14 ноября 2026, версия 0.3.0 (build 4)
+## Актуализация: 14 ноября 2026, версия 0.3.1 (build 5)
 
 Приложение уже реализовано: AppKit/SwiftUI-панель, USB HID, локальные профили, меню значка, резервные копии и подписанные обновления. Точки входа: `tools/k530menu/Sources/main.swift`, `LightingController.swift`, `LightingProfileStore.swift`; текущая инструкция — [INTERFACE_RU.md](INTERFACE_RU.md), выпуск — [UPDATES_RU.md](UPDATES_RU.md), оставшиеся проверки — [BACKLOG_RU.md](BACKLOG_RU.md).
 

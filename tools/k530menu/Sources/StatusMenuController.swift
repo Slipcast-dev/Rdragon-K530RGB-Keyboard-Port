@@ -52,7 +52,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         read.isEnabled = !model.busy && !updater.isBusy; menu.addItem(read)
         let updates = item("Проверить обновления…", #selector(checkUpdates))
         updates.isEnabled = !model.busy && !updater.isBusy; menu.addItem(updates)
-        menu.addItem(item("Мониторинг ввода…", #selector(permissions)))
         let restart = item("Перезапустить", #selector(restart))
         restart.isEnabled = !model.busy && !updater.isBusy; menu.addItem(restart)
         menu.addItem(.separator())
@@ -70,7 +69,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func open() { openWindow() }
     @objc private func close() { closeWindow() }
     @objc private func refresh() { model.refresh() }
-    @objc private func permissions() { model.openInputSettings() }
     @objc private func checkUpdates() { model.checkUpdates() }
     @objc private func restart() { model.restartApplication() }
     @objc private func terminate() { NSApp.terminate(nil) }

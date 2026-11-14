@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 /// Палитра повторяет согласованный макет; акценты без неонового размытия.
-private enum Theme {
+enum AppTheme {
     static let background = Color(red: 0.055, green: 0.067, blue: 0.086)
     static let cyan = Color(red: 0, green: 0.90, blue: 1)
     static let muted = Color(red: 0.60, green: 0.65, blue: 0.71)
@@ -25,22 +25,29 @@ struct LightingView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     if model.needsPermission { permissionNotice }
-                    KeyboardPreview(color: model.draft.usesColor ? color : Theme.cyan,
+                    KeyboardPreview(color: model.draft.usesColor ? color : AppTheme.cyan,
                                     brightness: model.draft.brightness, colourful: model.draft.colourful)
                         .frame(width: 470, height: 168).frame(maxWidth: .infinity)
                         .accessibilityLabel("Предпросмотр цвета подсветки; не редактор отдельных клавиш")
-                    Text("Предпросмотр цвета").font(.system(size: 10)).foregroundColor(Theme.muted)
+                    Text("Предпросмотр цвета").font(.system(size: 10)).foregroundColor(AppTheme.muted)
                         .frame(maxWidth: .infinity).padding(.top, -10)
                     Divider()
                     controls.disabled(model.busy || updater.isBusy)
                     Divider()
                     HStack(spacing: 12) {
                         Text(model.selectedProfile?.name ?? "Профили")
-                            .font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
+                            .font(.system(size: 12)).foregroundColor(AppTheme.muted).lineLimit(1)
                         if model.hasUnsavedProfileChanges {
-                            Text("• не сохранён").font(.system(size: 10)).foregroundColor(Theme.muted)
+                            Text("• не сохранён").font(.system(size: 10)).foregroundColor(AppTheme.muted)
                         }
                         Spacer(minLength: 4)
+                        Button { showingProfiles.toggle() } label: {
+                            Label("Профили", systemImage: "square.stack")
+                        }
+                        .buttonStyle(PanelActionStyle(primary: false))
+                        .popover(isPresented: $showingProfiles, arrowEdge: .top) {
+                            LightingProfilesView(model: model, updater: updater)
+                        }
                         Button("Вернуть исходное", action: model.restore)
                             .buttonStyle(PanelActionStyle(primary: false))
                             .disabled(!model.canRestore || model.busy || updater.isBusy)
@@ -59,8 +66,8 @@ struct LightingView: View {
             status
         }
         .frame(width: 740, height: 680)
-        .background(Theme.background).foregroundColor(.white)
-        .accentColor(Theme.cyan).colorScheme(.dark)
+        .background(AppTheme.background).foregroundColor(.white)
+        .accentColor(AppTheme.cyan).colorScheme(.dark)
         .onAppear { hexInput = model.draft.hex }
         .onChange(of: model.draft.hex) { hexInput = $0; invalidHex = false }
     }
@@ -69,29 +76,19 @@ struct LightingView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 7) {
                 Text("K530 LIGHTING").font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Theme.cyan)
+                    .foregroundColor(AppTheme.cyan)
                 Text("Redragon K530").font(.system(size: 24, weight: .semibold))
                 HStack(spacing: 6) {
-                    Circle().fill(model.connected ? Color.green : Theme.muted).frame(width: 6, height: 6)
+                    Circle().fill(model.connected ? Color.green : AppTheme.muted).frame(width: 6, height: 6)
                     Text(model.needsPermission ? "Нужен доступ к клавиатуре" : model.connected ? "USB подключена" : "Нет подключения")
-                        .font(.system(size: 11)).foregroundColor(Theme.muted)
+                        .font(.system(size: 11)).foregroundColor(AppTheme.muted)
                 }
             }
             Spacer()
-            Button { showingProfiles.toggle() } label: {
-                Label("Профили", systemImage: "square.stack")
-                    .font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color.white.opacity(0.05)).cornerRadius(7)
-                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.white.opacity(0.15)))
-            }.buttonStyle(PlainButtonStyle())
-                .popover(isPresented: $showingProfiles, arrowEdge: .bottom) {
-                    LightingProfilesView(model: model, updater: updater)
-                }
             Menu {
                 Button("Перечитать устройство", action: model.refresh).disabled(model.busy || updater.isBusy)
                 Button(model.autostart ? "✓ Запускать при входе" : "Запускать при входе", action: model.toggleAutostart)
                 Button("Проверить обновления…", action: model.checkUpdates).disabled(updater.isBusy || model.busy)
-                Button("Мониторинг ввода…", action: model.openInputSettings)
                 Button("Перезапустить приложение", action: model.restartApplication).disabled(model.busy || updater.isBusy)
                 Button("Справка (FAQ)…", action: model.showHelp)
                 Divider()
@@ -139,7 +136,7 @@ struct LightingView: View {
             colorRow
             hexRow
             if !model.draft.usesColor {
-                Text("Этот эффект использует собственную палитру.").font(.caption).foregroundColor(Theme.muted)
+                Text("Этот эффект использует собственную палитру.").font(.caption).foregroundColor(AppTheme.muted)
                     .padding(.leading, 82)
             }
             slider("Яркость", value: $model.draft.brightness, range: 0...4, denominator: 4)
@@ -186,7 +183,7 @@ struct LightingView: View {
             model.draft.colourful = false
         } label: {
             Circle().fill(fill).frame(width: 19, height: 19).padding(3)
-                .overlay(Circle().stroke(selected ? Theme.cyan : .clear, lineWidth: 1))
+                .overlay(Circle().stroke(selected ? AppTheme.cyan : .clear, lineWidth: 1))
         }.buttonStyle(PlainButtonStyle()).help(preset.name).accessibilityLabel(preset.name)
     }
 
@@ -196,8 +193,8 @@ struct LightingView: View {
     private func effectButton(_ title: String, id: UInt8, symbol: String) -> some View {
         Button { model.draft.mode = id } label: {
             Label(title, systemImage: symbol).font(.system(size: 12)).frame(maxWidth: .infinity)
-                .padding(.vertical, 10).background(model.draft.mode == id ? Theme.cyan.opacity(0.09) : Color.white.opacity(0.03))
-                .cornerRadius(8).overlay(RoundedRectangle(cornerRadius: 8).stroke(model.draft.mode == id ? Theme.cyan : Color.white.opacity(0.15)))
+                .padding(.vertical, 10).background(model.draft.mode == id ? AppTheme.cyan.opacity(0.09) : Color.white.opacity(0.03))
+                .cornerRadius(8).overlay(RoundedRectangle(cornerRadius: 8).stroke(model.draft.mode == id ? AppTheme.cyan : Color.white.opacity(0.15)))
         }.buttonStyle(PlainButtonStyle())
     }
     private func slider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, denominator: Int) -> some View {
@@ -205,7 +202,7 @@ struct LightingView: View {
             rowLabel(title)
             Slider(value: value, in: range, step: 1).accessibilityLabel(title)
             Text("\(Int(value.wrappedValue)) / \(denominator)").font(.system(size: 12, design: .monospaced))
-                .foregroundColor(Theme.muted).frame(width: 55)
+                .foregroundColor(AppTheme.muted).frame(width: 55)
         }
     }
     /// Строка закреплена вне ScrollView и остаётся у нижней границы окна.
@@ -219,14 +216,14 @@ struct LightingView: View {
                 .help("Настройки выбранного набора записываются во все три аппаратных профиля клавиатуры")
             HStack(spacing: 5) {
                 Image(systemName: model.error ? "exclamationmark.circle" : model.busy ? "arrow.triangle.2.circlepath" : "checkmark.circle")
-                    .foregroundColor(model.error ? .orange : Theme.muted)
+                    .foregroundColor(model.error ? .orange : AppTheme.muted)
                 Text(model.profileError ?? deviceMessage)
             }.frame(maxWidth: .infinity, alignment: .leading)
                 .help(model.profileError ?? deviceMessage).accessibilityLabel(model.profileError ?? deviceMessage)
             Text(updater.message).frame(width: 185, alignment: .trailing)
                 .help(updater.message).accessibilityLabel(updater.message)
         }
-        .font(.system(size: 10)).foregroundColor(Theme.muted).lineLimit(1)
+        .font(.system(size: 10)).foregroundColor(AppTheme.muted).lineLimit(1)
         .truncationMode(.tail).padding(.horizontal, 20).frame(height: 38)
     }
 
@@ -274,8 +271,8 @@ struct PanelActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.system(size: 12, weight: .semibold))
             .foregroundColor(primary && enabled ? Color.black : Color.white.opacity(enabled ? 0.9 : 0.5))
-            .frame(width: 154, height: 36)
-            .background(primary && enabled ? Theme.cyan : Color.white.opacity(enabled ? 0.07 : 0.04))
+            .frame(width: 142, height: 36)
+            .background(primary && enabled ? AppTheme.cyan : Color.white.opacity(enabled ? 0.07 : 0.04))
             .cornerRadius(8)
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(primary && enabled ? 0 : 0.14)))
             .opacity(configuration.isPressed ? 0.75 : 1)

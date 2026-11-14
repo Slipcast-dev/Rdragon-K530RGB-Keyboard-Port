@@ -32,7 +32,7 @@ ln -s /Applications "$WORK_DIR/image/Applications"
 cat > "$WORK_DIR/image/Установка.txt" <<'INSTALL'
 K530 Lighting
 
-1. Закройте работающую копию через меню значка → «Выйти».
+1. Закройте работающую копию через меню значка → «Завершить K530 Lighting».
 2. Перетащите K530Lighting.app в папку Applications («Программы»).
 3. Извлеките этот образ и запускайте приложение из «Программ».
 4. Подключите Redragon K530 по USB.
