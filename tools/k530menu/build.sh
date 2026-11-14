@@ -29,6 +29,8 @@ if [ -f UpdatePublicKey.txt ]; then
   cp UpdatePublicKey.txt "$APP/Contents/Resources/UpdatePublicKey.txt"
 fi
 cp ../../docs/FAQ_RU.md "$APP/Contents/Resources/FAQ.md"
+cp ../../docs/FAQ_RU.md "$APP/Contents/Resources/FAQ_RU.md"
+cp ../../docs/FAQ_EN.md "$APP/Contents/Resources/FAQ_EN.md"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -39,8 +41,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleExecutable</key><string>K530Lighting</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.3.2</string>
-  <key>CFBundleVersion</key><string>6</string>
+  <key>CFBundleShortVersionString</key><string>0.4.0</string>
+  <key>CFBundleVersion</key><string>7</string>
+  <key>CFBundleDevelopmentRegion</key><string>ru</string>
+  <key>CFBundleLocalizations</key><array><string>ru</string><string>en</string></array>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>

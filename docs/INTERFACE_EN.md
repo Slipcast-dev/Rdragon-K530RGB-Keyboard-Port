@@ -1,8 +1,8 @@
 [Русский](INTERFACE_RU.md) | **English**
 
-# K530 Lighting 0.3.2 interface
+# K530 Lighting 0.4.0 interface
 
-The application's interface is currently in Russian; this document explains its behavior in English.
+The application interface and built-in help support Russian and English; this is the English developer guide.
 
 ## Architecture
 
@@ -18,20 +18,26 @@ The application's interface is currently in Russian; this document explains its 
 
 The target platform is macOS 11+, Intel and Apple Silicon. No external libraries are required. SwiftUI is embedded in AppKit through NSHostingView; see [Apple documentation](https://developer.apple.com/documentation/swiftui/nshostingview). The preview shows the overall color and does not simulate hardware animations.
 
+## Localization
+
+`AppLocalization.swift` stores the selected language in UserDefaults (`interfaceLanguage`): `ru` or `en`, with Russian as the default. `AppText` keeps both versions of messages so existing status can change language. SwiftUI observes the shared language object; native menus and open help refresh on the language-change notification. Lighting settings and saved user profile names are unchanged.
+
+The RU/EN button sits beside the gear; both use the same style and measure 36 × 36. The bundle includes `FAQ_RU.md` and `FAQ_EN.md`, selected explicitly using the application language.
+
 ## Using the panel
 
 1. Open the application or left-click its menu bar icon.
 2. Connect the K530 over USB. Grant Input Monitoring permission and restart if necessary.
-3. Select a settings set in “Профили” (Profiles). Change the effect, color, and levels; press Enter to confirm HEX input.
+3. Select a settings set in “Profiles”. Change the effect, color, and levels; press Enter to confirm HEX input.
 4. Save settings to the selected local profile. Saving does not write to the keyboard.
-5. Click “Применить” (Apply), or press Command+Enter. A saved-to-keyboard confirmation appears only after writing and reading back the values.
-6. “Вернуть исходное” (Restore Initial State) restores the first eight bytes of the hardware profiles captured by the first successful connection in the current session. A backup is saved to disk before the first write.
+5. Click “Apply”, or press Command+Enter. A saved-to-keyboard confirmation appears only after writing and reading back the values.
+6. “Restore Initial State” restores the first eight bytes of the hardware profiles captured by the first successful connection in the current session. A backup is saved to disk before the first write.
 
 Sliders and the palette change the draft, rather than the device. Effects with their own palettes disable color selection. The gear menu provides device rereading, launch at login, updates, restart, help, and quit.
 
 ## Application profiles
 
-The “Профили” button is in the bottom action row beside “Вернуть исходное” and “Применить”. Its popover uses a graphite background, cyan accents, custom buttons, and a text field. `preferredColorScheme(.dark)` gives the entire presentation a dark appearance, including when macOS uses a light theme.
+The “Profiles” button is in the bottom action row beside “Restore Initial State” and “Apply”. Its popover uses a graphite background, cyan accents, custom buttons, and a text field. `preferredColorScheme(.dark)` gives the entire presentation a dark appearance, including when macOS uses a light theme.
 
 A profile is a named set of mode, brightness, speed, and color settings. Sets are stored in `~/Library/Application Support/K530Lighting/profiles.json`; users can select, save, rename, create, and delete them. Separate profile drafts remain in memory when switching; only saved versions are written to disk. Save changes you need before quitting.
 
@@ -41,13 +47,13 @@ JSON read or validation errors are displayed to the user. A damaged file must no
 
 ## Menu bar icon and Dock
 
-Showing the main window sets `NSApplication.ActivationPolicy.regular`, so the application appears in the Dock. Closing that window with the red button, Command+W, or “Закрыть окно” (Close Window) switches the policy to `accessory`: the Dock icon disappears while the application remains in the menu bar. Minimizing is not closing. Reopening the panel restores regular mode.
+Showing the main window sets `NSApplication.ActivationPolicy.regular`, so the application appears in the Dock. Closing that window with the red button, Command+W, or “Close Window” switches the policy to `accessory`: the Dock icon disappears while the application remains in the menu bar. Minimizing is not closing. Reopening the panel restores regular mode.
 
-“Мониторинг ввода…” (Input Monitoring) has been removed from the drop-down menus. The button opening system settings remains in the missing-permission section.
+“Input Monitoring…” has been removed from the drop-down menus. The button opening system settings remains in the missing-permission section.
 
 - Left-click opens the panel.
 - Right-click opens the context menu: show/close the panel, choose a profile, quick lighting parameters, apply, updates, and quit.
-- “Эффект — применить” (Effect — apply) and “Яркость — применить” (Brightness — apply) immediately write the changed settings and verify the result. Selecting a profile only loads it; use “Применить выбранный профиль” (Apply Selected Profile) to write it. Quick hardware changes do not automatically save the local profile to disk.
+- “Effect — apply” and “Brightness — apply” immediately write the changed settings and verify the result. Selecting a profile only loads it; use “Apply Selected Profile” to write it. Quick hardware changes do not automatically save the local profile to disk.
 
 The icon remains available while the application process runs. After quitting, launch the `.app` from Finder or Applications again.
 
@@ -74,21 +80,12 @@ macOS and Command Line Tools are required. The default module cache is `.build/M
 
 ## Checks without hardware
 
-Run all four suites (settings, storage, profile controller, and updates):
+Run the automated suites, including localization checks:
 
 ```sh
 ./tools/k530menu/test.sh
 ```
 
-Individual suites:
 
-```sh
-swiftc -module-cache-path /tmp/k530-tests-cache tools/k530menu/Sources/LightingSettings.swift tools/k530menu/Tests/LightingSettingsTests.swift -o /tmp/k530-settings-tests
-/tmp/k530-settings-tests
-swiftc -module-cache-path /tmp/k530-tests-cache tools/k530menu/Sources/LightingSettings.swift tools/k530menu/Sources/LightingProfileStore.swift tools/k530menu/Tests/LightingProfileStoreTests.swift -o /tmp/k530-profile-tests
-/tmp/k530-profile-tests
-swiftc -module-cache-path /tmp/k530-tests-cache tools/k530menu/Sources/AppUpdater.swift tools/k530menu/Tests/UpdaterTests.swift -o /tmp/k530-updater-tests
-/tmp/k530-updater-tests
-```
 
 Building and unit tests do not replace hardware acceptance checks: USB reconnection, permissions, effects, lighting off, writes, restore, sleep/wake, and relaunch must be tested on a real K530. Visual layout must also be checked separately on supported macOS versions.

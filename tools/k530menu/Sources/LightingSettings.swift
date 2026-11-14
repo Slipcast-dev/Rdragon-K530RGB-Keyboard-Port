@@ -11,11 +11,45 @@ let modes: [(id: UInt8, name: String)] = [
     (16, "Both ways"), (17, "Surmount"), (18, "Fast and the Furious"), (20, "Coastal"),
 ]
 let knownModes = Set(modes.map { $0.id })
+/// Английские имена сохранены из штатного ПО; русские — читаемые подписи UI.
+/// Порядок и байтовые ID не зависят от языка.
+func localizedModeName(_ id: UInt8) -> String {
+    let russianNames: [UInt8: String] = [
+        1: "По течению", 2: "Летящие облака", 3: "Извилистые дорожки", 4: "Испытание света",
+        5: "Дыхание", 6: "Постоянный", 7: "Без следа", 8: "Рябь",
+        9: "Быстрый след", 10: "Зимний жасмин", 11: "Цветение", 12: "Стремительное движение",
+        13: "Ураган", 14: "Накопление", 15: "Цифровое время", 16: "В обе стороны",
+        17: "Преодоление", 18: "Форсаж", 20: "Побережье"
+    ]
+    guard let english = modes.first(where: { $0.id == id })?.name,
+          let russian = russianNames[id] else { return L("Режим \(id)", "Mode \(id)") }
+    return L(russian, english)
+}
+
 /// Режимы, в которых виден выбранный цвет (проверено человеком у клавиатуры: красный в режимах 1–3, 5–10, 13–16).
 /// В режимах 4, 11, 12, 17, 18 и 20 цвет не меняется — у них собственная палитра.
 let colorModes: Set<UInt8> = [1, 2, 3, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16]
 
-struct Preset { let name: String; let rgb: (UInt8, UInt8, UInt8) }
+struct Preset {
+    let name: String
+    let rgb: (UInt8, UInt8, UInt8)
+
+    /// Идентификатором остаётся прежнее имя, перевод вычисляется при показе.
+    var localizedName: String {
+        switch name {
+        case "Красный": return L(name, "Red")
+        case "Оранжевый": return L(name, "Orange")
+        case "Жёлтый": return L(name, "Yellow")
+        case "Зелёный": return L(name, "Green")
+        case "Голубой": return L(name, "Cyan")
+        case "Синий": return L(name, "Blue")
+        case "Фиолетовый": return L(name, "Purple")
+        case "Розовый": return L(name, "Pink")
+        case "Белый": return L(name, "White")
+        default: return name
+        }
+    }
+}
 let presets = [
     Preset(name: "Красный", rgb: (255, 0, 0)), Preset(name: "Оранжевый", rgb: (255, 127, 0)),
     Preset(name: "Жёлтый", rgb: (255, 255, 0)), Preset(name: "Зелёный", rgb: (0, 255, 0)),
@@ -26,6 +60,25 @@ let presets = [
 /// Скорость (+2): значение 0 — быстрее всего, 4 — медленнее всего (слайдер штатной программы инвертирован). Не проверено на клавиатуре.
 let speedLevels = [(4, "1 — медленно"), (3, "2"), (2, "3"), (1, "4"), (0, "5 — быстро")]
 let brightnessLevels = [(0, "0 — выключена"), (1, "1"), (2, "2"), (3, "3"), (4, "4 — максимум")]
+
+
+/// Яркость использует одинаковую шкалу в протоколе и UI: 0…4.
+func localizedBrightnessName(_ value: Int) -> String {
+    switch value {
+    case 0: return L("0 — выключена", "0 — off")
+    case 4: return L("4 — максимум", "4 — maximum")
+    default: return String(value)
+    }
+}
+
+/// Параметр — уровень UI 1…5, а не инвертированное значение протокола.
+func localizedSpeedName(_ value: Int) -> String {
+    switch value {
+    case 1: return L("1 — медленно", "1 — slow")
+    case 5: return L("5 — быстро", "5 — fast")
+    default: return String(value)
+    }
+}
 
 
 /// Редактируемая копия настроек: до «Применить» не отправляется в устройство.

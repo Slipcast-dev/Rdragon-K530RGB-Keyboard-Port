@@ -4,25 +4,26 @@
 
 # K530 Lighting
 
-A native macOS app for controlling **Redragon K530 RGB / Draconic** lighting over USB (`0C45:5004`, Sonix). Current version: **0.3.2**, macOS 11+, with one universal installer for **Intel and Apple Silicon**.
+A native macOS app for controlling **Redragon K530 RGB / Draconic** lighting over USB (`0C45:5004`, Sonix). Current version: **0.4.0**, macOS 11+, with one universal installer for **Intel and Apple Silicon**.
 
-This is an unofficial project and is not affiliated with Redragon. The protocol was reverse-engineered from the vendor software and tested on one keyboard; other hardware revisions may differ. **The application interface is currently in Russian.** This repository provides documentation in Russian and English.
+This is an unofficial project and is not affiliated with Redragon. The protocol was reverse-engineered from the vendor software and tested on one keyboard; other hardware revisions may differ. The interface, built-in help, and repository documentation are available in Russian and English. The RU/EN button beside Settings changes the language immediately and remembers the choice across launches.
 
 ## Installation
 
-1. Open the [latest release](https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/latest) and download `K530Lighting-0.3.2-macOS-universal.dmg`. Access to a private repository requires permission and a GitHub login.
+1. Open the [latest release](https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/latest) and download `K530Lighting-0.4.0-macOS-universal.dmg`. Access to a private repository requires permission and a GitHub login.
 2. Quit the old copy, drag `K530Lighting.app` from the disk image to Applications, and eject the image.
 3. Open the app. The build is ad-hoc signed and is not notarized; use the standard macOS Open action for an app you trust.
 4. Connect the keyboard with a **USB cable**, allow **Input Monitoring** in System Settings, and restart the app. You may need to grant this permission again after an update.
 
-The ZIP contains the same universal `.app` in an alternative package. For troubleshooting, see the [FAQ](docs/FAQ_EN.md). The app's built-in help is currently in Russian.
+The ZIP contains the same universal `.app` in an alternative package. For troubleshooting, see the [FAQ](docs/FAQ_EN.md). Built-in help follows the selected application language.
 
 ## Features
 
+- Switch between Russian and English without restarting; both header controls are 36 × 36.
 - 19 effects, brightness levels 0–4, and five animation speed levels.
 - Preset colors, HEX input, the macOS color picker, and multicolor mode.
 - Named local profiles with separate saved settings and drafts.
-- Preview changes before writing them with Apply (`Применить`); settings are read back to verify the write.
+- Preview changes before writing them with Apply; settings are read back to verify the write.
 - Restore the initial state and create a backup before the first write.
 - A Dock icon while the main panel is open; continued operation in the menu bar after closing it.
 - Left-click the menu bar icon to open the panel; right-click for quick settings and app controls.

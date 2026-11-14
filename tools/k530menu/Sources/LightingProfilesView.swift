@@ -5,13 +5,14 @@ import SwiftUI
 struct LightingProfilesView: View {
     @ObservedObject var model: LightingController
     @ObservedObject var updater: AppUpdater
+    @ObservedObject private var localization = AppLocalization.shared
     @State private var name = ""
     @State private var confirmingDelete = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Профили подсветки").font(.system(size: 16, weight: .semibold))
-            Text("Выберите набор, сохраните изменения и нажмите «Применить» в основном окне.")
+            Text(L("Профили подсветки", "Lighting profiles")).font(.system(size: 16, weight: .semibold))
+            Text(L("Выберите набор, сохраните изменения и нажмите «Применить» в основном окне.", "Select a profile, save your changes, then click Apply in the main window."))
                 .font(.system(size: 11)).foregroundColor(AppTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
@@ -30,19 +31,19 @@ struct LightingProfilesView: View {
                     }
                 }
             }.frame(height: min(180, CGFloat(model.profiles.count) * 38))
-            Text("НАЗВАНИЕ").font(.system(size: 9, weight: .medium, design: .monospaced))
+            Text(L("НАЗВАНИЕ", "NAME")).font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundColor(AppTheme.muted)
-            TextField("Название профиля", text: $name)
+            TextField(L("Название профиля", "Profile name"), text: $name)
                 .textFieldStyle(PlainTextFieldStyle()).font(.system(size: 12)).padding(10)
                 .background(Color.white.opacity(0.05)).cornerRadius(6)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15)))
-            Button("Сохранить настройки профиля") { model.saveProfile(name: name) }
+            Button(L("Сохранить настройки профиля", "Save profile settings")) { model.saveProfile(name: name) }
                 .buttonStyle(ProfileActionStyle(primary: true))
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             HStack {
-                Button("Создать", action: model.createProfile)
+                Button(L("Создать", "Create"), action: model.createProfile)
                     .buttonStyle(ProfileActionStyle(primary: false)).disabled(model.profiles.count >= 100)
-                Button("Удалить…") { confirmingDelete = true }
+                Button(L("Удалить…", "Delete…")) { confirmingDelete = true }
                     .buttonStyle(ProfileActionStyle(primary: false, destructive: true)).disabled(model.profiles.count <= 1)
             }
             if let error = model.profileError {
@@ -58,10 +59,10 @@ struct LightingProfilesView: View {
             .onAppear { name = model.selectedProfile?.name ?? "" }
             .onChange(of: model.selectedProfileID) { _ in name = model.selectedProfile?.name ?? "" }
             .alert(isPresented: $confirmingDelete) {
-                Alert(title: Text("Удалить профиль «\(model.selectedProfile?.name ?? "")»?"),
-                      message: Text("Сохранённый набор и его черновик будут удалены. Настройки клавиатуры останутся прежними."),
-                      primaryButton: .destructive(Text("Удалить"), action: model.deleteProfile),
-                      secondaryButton: .cancel(Text("Отмена")))
+                Alert(title: Text(L("Удалить профиль «\(model.selectedProfile?.name ?? "")»?", "Delete profile ‘\(model.selectedProfile?.name ?? "")’?")),
+                      message: Text(L("Сохранённый набор и его черновик будут удалены. Настройки клавиатуры останутся прежними.", "The saved profile and its draft will be deleted. The keyboard settings will stay unchanged.")),
+                      primaryButton: .destructive(Text(L("Удалить", "Delete")), action: model.deleteProfile),
+                      secondaryButton: .cancel(Text(L("Отмена", "Cancel"))))
             }
     }
 }

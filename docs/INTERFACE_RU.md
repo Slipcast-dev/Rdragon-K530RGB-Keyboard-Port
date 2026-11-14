@@ -1,6 +1,6 @@
 **Русский** | [English](INTERFACE_EN.md)
 
-# Интерфейс K530 Lighting 0.3.2
+# Интерфейс K530 Lighting 0.4.0
 
 ## Архитектура
 
@@ -15,6 +15,12 @@
 - `FaqWindowController.swift`: встроенная справка.
 
 Целевая платформа — macOS 11+, Intel и Apple Silicon. Внешних библиотек нет. SwiftUI встроен в AppKit через NSHostingView — [документация Apple](https://developer.apple.com/documentation/swiftui/nshostingview). Предпросмотр показывает общий цвет и не моделирует аппаратную анимацию.
+
+## Локализация
+
+`AppLocalization.swift` хранит выбранный язык в UserDefaults (`interfaceLanguage`): `ru` или `en`, русский по умолчанию. `AppText` сохраняет обе версии сообщений, чтобы уже показанное состояние могло сменить язык. SwiftUI наблюдает общий объект языка; нативные меню и открытая справка обновляются при уведомлении смены языка. Бизнес-настройки и сохранённые имена профилей не меняются.
+
+Кнопка RU/EN расположена рядом с шестерёнкой; обе используют одинаковый стиль и размер 36 × 36. В ресурсы сборки входят `FAQ_RU.md` и `FAQ_EN.md`; справка выбирается явно по языку приложения.
 
 ## Работа с панелью
 
@@ -72,21 +78,12 @@ open tools/k530menu/.build/K530Lighting.app
 
 ## Проверки без оборудования
 
-Все четыре набора (настройки, хранилище, контроллер профилей и обновления):
+Автоматические наборы, включая проверку локализации:
 
 ```sh
 ./tools/k530menu/test.sh
 ```
 
-Отдельные наборы:
 
-```sh
-swiftc -module-cache-path /tmp/k530-tests-cache tools/k530menu/Sources/LightingSettings.swift tools/k530menu/Tests/LightingSettingsTests.swift -o /tmp/k530-settings-tests
-/tmp/k530-settings-tests
-swiftc -module-cache-path /tmp/k530-tests-cache tools/k530menu/Sources/LightingSettings.swift tools/k530menu/Sources/LightingProfileStore.swift tools/k530menu/Tests/LightingProfileStoreTests.swift -o /tmp/k530-profile-tests
-/tmp/k530-profile-tests
-swiftc -module-cache-path /tmp/k530-tests-cache tools/k530menu/Sources/AppUpdater.swift tools/k530menu/Tests/UpdaterTests.swift -o /tmp/k530-updater-tests
-/tmp/k530-updater-tests
-```
 
 Сборка и unit-тесты не заменяют аппаратную приёмку: USB-переподключение, разрешения, эффекты, выключение подсветки, запись, откат, сон/пробуждение и повторный запуск требуют проверки на реальной K530. Отдельно проверяется визуальная компоновка на поддерживаемых версиях macOS.

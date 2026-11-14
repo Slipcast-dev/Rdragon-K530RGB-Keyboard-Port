@@ -45,14 +45,14 @@ struct LightingProfile: Codable, Identifiable, Equatable {
     }
 }
 
-enum LightingProfileError: LocalizedError {
+enum LightingProfileError: AppLocalizedError {
     case unsupportedVersion, invalidProfiles, invalidSettings, damagedFile
-    var errorDescription: String? {
+    var appText: AppText {
         switch self {
-        case .unsupportedVersion: return "Формат файла профилей не поддерживается. Файл сохранён без изменений."
-        case .invalidProfiles: return "Некорректный список профилей: проверьте имена и выбранный профиль."
-        case .invalidSettings: return "Профиль содержит недопустимые настройки подсветки."
-        case .damagedFile: return "Не удалось прочитать файл профилей. Исходный файл сохранён без изменений."
+        case .unsupportedVersion: return AppText("Формат файла профилей не поддерживается. Файл сохранён без изменений.", "The profile file format is not supported. The file was left unchanged.")
+        case .invalidProfiles: return AppText("Некорректный список профилей: проверьте имена и выбранный профиль.", "Invalid profile list: check the names and selected profile.")
+        case .invalidSettings: return AppText("Профиль содержит недопустимые настройки подсветки.", "The profile contains invalid lighting settings.")
+        case .damagedFile: return AppText("Не удалось прочитать файл профилей. Исходный файл сохранён без изменений.", "Could not read the profile file. The original file was left unchanged.")
         }
     }
 }
@@ -64,7 +64,7 @@ struct LightingProfileDocument: Codable, Equatable {
     var profiles: [LightingProfile]
 
     static func defaults() -> LightingProfileDocument {
-        let profiles = (1...3).map { LightingProfile(name: "Профиль \($0)", settings: LightingSettings()) }
+        let profiles = (1...3).map { LightingProfile(name: L("Профиль \($0)", "Profile \($0)"), settings: LightingSettings()) }
         return LightingProfileDocument(selectedID: profiles[0].id, profiles: profiles)
     }
 

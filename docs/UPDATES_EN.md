@@ -10,7 +10,7 @@ An Ed25519 signature authenticates an archive but does not grant access to GitHu
 
 ## Behavior
 
-`AppUpdater` checks the latest stable GitHub Release 30 seconds after launch, then every 6 hours. Network operations run in the background. A newer tag, such as `v0.3.2`, prompts with “Скачать” (Download) and “Позже” (Later). Later postpones the prompt for one day; a manual check ignores that postponement. Keyboard settings remain unchanged during the check.
+`AppUpdater` checks the latest stable GitHub Release 30 seconds after launch, then every 6 hours. Network operations run in the background. A newer tag, such as `v0.4.0`, prompts with “Скачать” (Download) and “Позже” (Later). Later postpones the prompt for one day; a manual check ignores that postponement. Keyboard settings remain unchanged during the check.
 
 After consent: verify the manifest signature → download with a percentage when the server reports its size → verify SHA-256 → extract → verify the bundle and code signature → install → launch the new version and quit the old process. Stages without a known percentage show an indeterminate indicator and operation text. Additional checks during a download are prevented.
 
@@ -22,7 +22,7 @@ If the trusted key is missing, an explanation is displayed and the release page 
 
 Installation does not change firmware or delete local profiles in Application Support. Normal quitting is blocked during downloading and installation; successful replacement permits the intentional quit used for restart. The old bundle is retained beside the application as a hidden `.K530Lighting-backup-UUID.app`. A failed move or launch command restores the old bundle. Success from `/usr/bin/open -n` confirms that macOS accepted the launch request, not that the new version cannot crash afterward. If it does crash, the backup `.app` can be launched manually. The user removes backup versions after verifying the update.
 
-## Packaging the current 0.3.2 release
+## Packaging the current 0.4.0 release
 
 From the repository root:
 
@@ -30,11 +30,11 @@ From the repository root:
 ./tools/k530menu/package.sh
 ```
 
-The script runs a universal build, verifies the bundle signature, and creates `dist/K530Lighting-0.3.2-macOS-universal.dmg` containing the application and an Applications link. It also creates the update ZIP, `SHA256SUMS`, `update.json`, and `update.json.sig`. The manifest signature is checked with the public key from the built application. Missing or mismatched keys abort the release; existing final artifacts are not replaced with unsigned files.
+The script runs a universal build, verifies the bundle signature, and creates `dist/K530Lighting-0.4.0-macOS-universal.dmg` containing the application and an Applications link. It also creates the update ZIP, `SHA256SUMS`, `update.json`, and `update.json.sig`. The manifest signature is checked with the public key from the built application. Missing or mismatched keys abort the release; existing final artifacts are not replaced with unsigned files.
 
 By default, the private key is read from `~/Library/Application Support/K530Lighting/ReleaseKeys/update-signing.key`; override the path with `K530_UPDATE_PRIVATE_KEY`. `SWIFT_MODULECACHE_PATH` selects the Swift module cache. The private key is never included in archives. `dist/` and `.build/` are excluded from Git.
 
-Packaging is local and does not publish the files: the manifest URL becomes usable only after the files are attached to the stable GitHub Release `v0.3.2`. Automatic updates need the ZIP; the DMG is for manual installation.
+Packaging is local and does not publish the files: the manifest URL becomes usable only after the files are attached to the stable GitHub Release `v0.4.0`. Automatic updates need the ZIP; the DMG is for manual installation.
 
 ## Preparing signed releases
 
@@ -51,17 +51,17 @@ Packaging is local and does not publish the files: the manifest URL becomes usab
 3. Build the application with increased `CFBundleShortVersionString` and numeric `CFBundleVersion` values. The manifest version must match the GitHub tag without `v`; the build number must strictly increase. Put `K530Lighting.app` at the root of the ZIP:
 
    ```sh
-   ditto -c -k --sequesterRsrc --keepParent tools/k530menu/.build/K530Lighting.app K530Lighting-0.3.2-macOS-universal.zip
-   shasum -a 256 K530Lighting-0.3.2-macOS-universal.zip
+   ditto -c -k --sequesterRsrc --keepParent tools/k530menu/.build/K530Lighting.app K530Lighting-0.4.0-macOS-universal.zip
+   shasum -a 256 K530Lighting-0.4.0-macOS-universal.zip
    ```
 
 4. Create `update.json` with the real SHA-256 and the archive URL for the intended release:
 
    ```json
    {
-     "version": "0.3.2",
-     "build": 6,
-     "archive": "https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/download/v0.3.2/K530Lighting-0.3.2-macOS-universal.zip",
+     "version": "0.4.0",
+     "build": 7,
+     "archive": "https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/download/v0.4.0/K530Lighting-0.4.0-macOS-universal.zip",
      "sha256": "REPLACE_WITH_64_HEXADECIMAL_CHARACTERS",
      "minimumSystemVersion": "11.0"
    }
@@ -80,7 +80,7 @@ The archive must contain one universal application for both architectures; the u
 ## Checks
 
 ```sh
-swiftc -module-cache-path /tmp/k530-tests-cache -framework CryptoKit tools/k530menu/Sources/AppUpdater.swift tools/k530menu/Tests/UpdaterTests.swift -o /tmp/k530-updater-tests
+swiftc -module-cache-path /tmp/k530-tests-cache -framework CryptoKit tools/k530menu/Sources/AppLocalization.swift tools/k530menu/Sources/AppUpdater.swift tools/k530menu/Tests/UpdaterTests.swift -o /tmp/k530-updater-tests
 /tmp/k530-updater-tests
 ```
 

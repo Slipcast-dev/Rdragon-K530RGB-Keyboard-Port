@@ -15,8 +15,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     func makeMenu() -> NSMenu {
         let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
-        menu.addItem(item("Открыть K530 Lighting", #selector(open)))
-        menu.addItem(item("Закрыть окно", #selector(close)))
+        menu.addItem(item(L("Открыть K530 Lighting", "Open K530 Lighting"), #selector(open)))
+        menu.addItem(item(L("Закрыть окно", "Close Window"), #selector(close)))
         menu.addItem(.separator())
         let profiles = NSMenu(); profiles.autoenablesItems = false
         for (index, profile) in model.profiles.enumerated() {
@@ -25,37 +25,37 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             entry.isEnabled = !model.busy && !updater.isBusy
             profiles.addItem(entry)
         }
-        let profileItem = NSMenuItem(title: "Профили", action: nil, keyEquivalent: "")
+        let profileItem = NSMenuItem(title: L("Профили", "Profiles"), action: nil, keyEquivalent: "")
         profileItem.submenu = profiles; menu.addItem(profileItem)
-        let apply = item("Применить выбранный профиль", #selector(applyProfile))
+        let apply = item(L("Применить выбранный профиль", "Apply Selected Profile"), #selector(applyProfile))
         apply.isEnabled = model.connected && !model.busy && !updater.isBusy
         menu.addItem(apply)
         let enabled = model.connected && !model.busy && !updater.isBusy
         let effects = NSMenu(); effects.autoenablesItems = false
         for mode in modes {
-            let entry = item(mode.name, #selector(selectMode(_:)))
+            let entry = item(localizedModeName(mode.id), #selector(selectMode(_:)))
             entry.tag = Int(mode.id); entry.state = mode.id == model.draft.mode ? .on : .off
             entry.isEnabled = enabled; effects.addItem(entry)
         }
-        let effectItem = NSMenuItem(title: "Эффект — применить", action: nil, keyEquivalent: "")
+        let effectItem = NSMenuItem(title: L("Эффект — применить", "Effect — Apply"), action: nil, keyEquivalent: "")
         effectItem.submenu = effects; menu.addItem(effectItem)
         let brightness = NSMenu(); brightness.autoenablesItems = false
-        for (level, title) in brightnessLevels {
-            let entry = item(title, #selector(selectBrightness(_:)))
+        for (level, _) in brightnessLevels {
+            let entry = item(localizedBrightnessName(level), #selector(selectBrightness(_:)))
             entry.tag = level; entry.state = Int(model.draft.brightness) == level ? .on : .off
             entry.isEnabled = enabled; brightness.addItem(entry)
         }
-        let brightnessItem = NSMenuItem(title: "Яркость — применить", action: nil, keyEquivalent: "")
+        let brightnessItem = NSMenuItem(title: L("Яркость — применить", "Brightness — Apply"), action: nil, keyEquivalent: "")
         brightnessItem.submenu = brightness; menu.addItem(brightnessItem)
         menu.addItem(.separator())
-        let read = item("Перечитать устройство", #selector(refresh))
+        let read = item(L("Перечитать устройство", "Read Device Settings"), #selector(refresh))
         read.isEnabled = !model.busy && !updater.isBusy; menu.addItem(read)
-        let updates = item("Проверить обновления…", #selector(checkUpdates))
+        let updates = item(L("Проверить обновления…", "Check for Updates…"), #selector(checkUpdates))
         updates.isEnabled = !model.busy && !updater.isBusy; menu.addItem(updates)
-        let restart = item("Перезапустить", #selector(restart))
+        let restart = item(L("Перезапустить", "Restart"), #selector(restart))
         restart.isEnabled = !model.busy && !updater.isBusy; menu.addItem(restart)
         menu.addItem(.separator())
-        let quit = item("Завершить K530 Lighting", #selector(terminate))
+        let quit = item(L("Завершить K530 Lighting", "Quit K530 Lighting"), #selector(terminate))
         quit.isEnabled = !model.busy && !updater.isBusy; quit.keyEquivalent = "q"
         menu.addItem(quit)
         return menu

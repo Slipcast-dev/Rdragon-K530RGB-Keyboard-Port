@@ -4,9 +4,9 @@
 
 ## Current release
 
-**0.3.2, build 6**, November 14, 2026. All four `test.sh` suites passed; local Markdown links were checked without errors. Universal building and packaging were completed: the application signature, DMG, version/build, x86_64 + arm64, checksums, and agreement between the embedded FAQ and the then-current documentation were checked. GitHub file publication is checked separately.
+**0.4.0, build 7**, November 14, 2026. The interface and built-in help now support Russian and English. The language button sits beside the gear; the selected language persists across launches.
 
-The published 0.3.2 installers embed the Russian help from their release commit. Later bilingual repository documentation does not rebuild those artifacts or localize the shipped interface or help. The checks above describe the original build, not a new build of the translated documentation.
+All five `test.sh` suites passed. Full application type checking and independent static review completed. The x86_64 + arm64 universal build, signature, DMG, copying the app from the image, version/build, both FAQ files and RU/EN installation instructions, bundle language metadata, and checksums were verified. Publication is confirmed separately.
 
 ## Automated checks
 
@@ -16,13 +16,14 @@ From the repository root:
 ./tools/k530menu/test.sh
 ```
 
-The four suites cover:
+The five suites cover:
 
 | Suite | Coverage |
 |---|---|
 | `LightingSettingsTests` | HEX, valid values, and speed conversion |
 | `LightingProfileStoreTests` | Saving, independent sets, validation, and preservation of damaged files |
 | `LightingControllerProfileTests` | Draft switching, saving, relaunch, profile creation, and deletion |
+| `AppLocalizationTests` | Default and persisted language, live messages, mode/color labels, unchanged user names, and help language selection |
 | `UpdaterTests` | Trusted signatures, tampering, URLs, build numbers, and installation rollback |
 
 Tests do not send commands to the keyboard or download releases. `package.sh` separately verifies the application signature, DMG, and manifest signature against the build's public key. Before publication, checksums, version/build, and the architectures of a copy extracted from the DMG are checked.

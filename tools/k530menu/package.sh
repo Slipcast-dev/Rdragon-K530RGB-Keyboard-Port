@@ -39,11 +39,29 @@ K530 Lighting
 5. Разрешите K530Lighting в «Конфиденциальность и безопасность → Мониторинг ввода».
    Для старой записи после обновления может потребоваться удалить её и добавить новую .app.
 6. Перезапустите приложение. Левый щелчок значка открывает панель, правый — быстрое меню.
+7. Кнопка RU/EN рядом с шестерёнкой меняет язык интерфейса и справки без перезапуска; выбор сохраняется.
 
 Профили приложения — именованные наборы настроек, сохраняемые на этом Mac.
 Выбор профиля загружает черновик; «Применить» записывает его в клавиатуру.
 Приложение подписано ad-hoc и не нотаризовано.
 INSTALL
+cat > "$WORK_DIR/image/README_Installation_EN.txt" <<'INSTALL_EN'
+K530 Lighting
+
+1. Quit the running copy using the menu bar icon: Quit K530 Lighting.
+2. Drag K530Lighting.app to Applications.
+3. Eject this disk image and launch the app from Applications.
+4. Connect the Redragon K530 over USB.
+5. Allow K530Lighting in Privacy & Security > Input Monitoring.
+   An older permission entry may need to be removed and the current .app added again.
+6. Restart the app. Left-click the menu bar icon to open the panel; right-click for quick actions.
+7. Click RU/EN beside the gear to change the interface and help language immediately. The choice is remembered.
+
+The default language is Russian; use the header language button to select English.
+Local app profiles are named settings stored on this Mac.
+Selecting a profile loads its draft; Apply writes settings to the keyboard.
+The app is ad-hoc signed and is not notarized.
+INSTALL_EN
 hdiutil create -quiet -volname "K530 Lighting $VERSION" -srcfolder "$WORK_DIR/image" -format UDZO "$WORK_DIR/$BASE.dmg"
 hdiutil verify -quiet "$WORK_DIR/$BASE.dmg"
 

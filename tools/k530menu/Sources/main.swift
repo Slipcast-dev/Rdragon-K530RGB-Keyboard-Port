@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } else { button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "K530 Lighting") }
             button.target = self; button.action = #selector(statusButtonClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.toolTip = "K530 Lighting — управление подсветкой"
+            button.toolTip = L("K530 Lighting — управление подсветкой", "K530 Lighting — lighting controls")
         }
         if IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
             _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
@@ -80,26 +80,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         showPanel()
         NotificationCenter.default.addObserver(self, selector: #selector(becameActive),
             name: NSApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(languageChanged(_:)),
+            name: .appLanguageDidChange, object: AppLocalization.shared)
         updater.start()
     }
+
+    /// AppKit-меню не наблюдает SwiftUI автоматически: пересобираем его
+    /// при выборе языка, не затрагивая окно, черновики и состояние Dock.
+    @objc private func languageChanged(_ notification: Notification) {
+        configureApplicationMenu()
+        statusItem.menu?.cancelTracking()
+        statusItem.menu = nil
+        statusItem.button?.toolTip = L("K530 Lighting — управление подсветкой", "K530 Lighting — lighting controls")
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
 
     private func configureApplicationMenu() {
         let mainMenu = NSMenu()
         let root = NSMenuItem(); mainMenu.addItem(root)
         let appMenu = NSMenu(title: "K530 Lighting")
-        let close = NSMenuItem(title: "Закрыть окно", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let close = NSMenuItem(title: L("Закрыть окно", "Close Window"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         close.target = nil; appMenu.addItem(close)
         appMenu.addItem(.separator())
-        let quit = NSMenuItem(title: "Завершить K530 Lighting", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L("Завершить K530 Lighting", "Quit K530 Lighting"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp; appMenu.addItem(quit)
         root.submenu = appMenu
         let editRoot = NSMenuItem(); mainMenu.addItem(editRoot)
-        let edit = NSMenu(title: "Правка")
+        let edit = NSMenu(title: L("Правка", "Edit"))
         for (title, action, key) in [
-            ("Вырезать", #selector(NSText.cut(_:)), "x"),
-            ("Копировать", #selector(NSText.copy(_:)), "c"),
-            ("Вставить", #selector(NSText.paste(_:)), "v"),
-            ("Выбрать всё", #selector(NSText.selectAll(_:)), "a")
+            (L("Вырезать", "Cut"), #selector(NSText.cut(_:)), "x"),
+            (L("Копировать", "Copy"), #selector(NSText.copy(_:)), "c"),
+            (L("Вставить", "Paste"), #selector(NSText.paste(_:)), "v"),
+            (L("Выбрать всё", "Select All"), #selector(NSText.selectAll(_:)), "a")
         ] {
             edit.addItem(NSMenuItem(title: title, action: action, keyEquivalent: key))
         }
@@ -150,16 +163,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 DispatchQueue.main.async {
                     if process.terminationStatus == 0 { NSApp.terminate(nil) }
                     else {
-                        let alert = NSAlert(); alert.messageText = "Не удалось перезапустить приложение"
-                        alert.informativeText = "Закройте приложение через меню и откройте снова."
+                        let alert = NSAlert(); alert.messageText = L("Не удалось перезапустить приложение", "Could Not Restart the App")
+                        alert.informativeText = L("Закройте приложение через меню и откройте снова.", "Quit the app from its menu and open it again.")
+                        alert.addButton(withTitle: L("ОК", "OK"))
                         alert.runModal()
                     }
                 }
             }
             try process.run()
         } catch {
-            let alert = NSAlert(); alert.messageText = "Не удалось перезапустить приложение"
-            alert.informativeText = error.localizedDescription; alert.runModal()
+            let alert = NSAlert(); alert.messageText = L("Не удалось перезапустить приложение", "Could Not Restart the App")
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: L("ОК", "OK")); alert.runModal()
         }
     }
 

@@ -40,16 +40,28 @@ private extension ProcessInfo {
     }
 }
 
-enum UpdateFailure: LocalizedError {
-    case invalidManifest, signature, invalidArchive, missingKey, network, installation(String)
-    var errorDescription: String? {
+enum UpdateFailure: AppLocalizedError {
+    case invalidManifest, signature, invalidArchive, missingKey, network, installation(AppText)
+    var appText: AppText {
         switch self {
-        case .invalidManifest: return "Некорректное описание обновления или несовместимая версия macOS."
-        case .signature: return "Подпись обновления не подтверждена. Установка отменена."
-        case .invalidArchive: return "Архив повреждён или содержит другое приложение."
-        case .missingKey: return "В этой сборке отсутствует доверенный ключ обновлений. Доступна ручная загрузка со страницы релизов."
-        case .network: return "Сервер обновлений недоступен. Повторите проверку позже."
-        case .installation(let detail): return "Не удалось установить обновление: \(detail)"
+        case .invalidManifest:
+            return AppText("Некорректное описание обновления или несовместимая версия macOS.",
+                           "The update manifest is invalid, or this macOS version is not supported.")
+        case .signature:
+            return AppText("Подпись обновления не подтверждена. Установка отменена.",
+                           "The update signature could not be verified. Installation was cancelled.")
+        case .invalidArchive:
+            return AppText("Архив повреждён или содержит другое приложение.",
+                           "The archive is damaged or contains a different application.")
+        case .missingKey:
+            return AppText("В этой сборке отсутствует доверенный ключ обновлений. Доступна ручная загрузка со страницы релизов.",
+                           "This build has no trusted update key. Download the update manually from Releases.")
+        case .network:
+            return AppText("Сервер обновлений недоступен. Повторите проверку позже.",
+                           "The update server is unavailable. Try again later.")
+        case .installation(let detail):
+            return AppText("Не удалось установить обновление: \(detail.russian)",
+                           "Could not install the update: \(detail.english)")
         }
     }
 }
@@ -57,7 +69,8 @@ enum UpdateFailure: LocalizedError {
 /// Проверяет релизы в фоне. Настройки клавиатуры не затрагиваются; установка начинается только после согласия.
 /// Сетевые операции и распаковка не блокируют интерфейс. Изменения опубликованного состояния идут на main.
 final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
-    @Published private(set) var message = "Обновления проверяются автоматически"
+    @Published private var statusText = AppText("Обновления проверяются автоматически", "Updates are checked automatically")
+    var message: String { statusText.value }
     @Published private(set) var progress: Double?
     @Published private(set) var isBusy = false
     private(set) var readyToRelaunch = false
@@ -83,14 +96,14 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
 
     func checkManually() { check(manual: true) }
 
-    private func state(_ text: String, progress: Double? = nil) {
-        DispatchQueue.main.async { self.message = text; self.progress = progress }
+    private func state(_ text: AppText, progress: Double? = nil) {
+        DispatchQueue.main.async { self.statusText = text; self.progress = progress }
     }
 
     private func check(manual: Bool) {
         guard !checking, !isBusy else { return }
         checking = true
-        message = "Проверка обновлений…"
+        statusText = AppText("Проверка обновлений…", "Checking for updates…")
         var request = URLRequest(url: URL(string: repository)!)
         request.timeoutInterval = 30
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -102,29 +115,30 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
                 if http.statusCode == 404 {
                     // GitHub скрывает приватные репозитории ответом 404; это
                     // не подтверждает отсутствие обновлений установленной версии.
-                    self.message = "Проверка недоступна: нет общедоступного релиза или репозиторий закрыт"
+                    self.statusText = AppText("Проверка недоступна: нет общедоступного релиза или репозиторий закрыт", "Update check unavailable: no public release, or the repository is private")
                     return
                 }
                 guard http.statusCode == 200, let data = data,
                       let release = try? JSONDecoder().decode(Release.self, from: data) else { self.fail(UpdateFailure.network); return }
                 let version = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
                 guard !release.prerelease, !release.draft, UpdateManifest.newer(version, than: self.currentVersion) else {
-                    self.message = "Установлена актуальная версия"; return
+                    self.statusText = AppText("Установлена актуальная версия", "You have the latest version"); return
                 }
-                self.message = "Доступна версия \(version)"
+                self.statusText = AppText("Доступна версия \(version)", "Version \(version) is available")
                 let deferred = UserDefaults.standard.double(forKey: "UpdateReminderDate")
                 if !manual && deferred > Date().timeIntervalSince1970 { return }
                 let alert = NSAlert()
-                alert.messageText = "Доступна K530 Lighting \(version)"
-                alert.informativeText = "Скачать обновление? После проверки оно установится автоматически, и приложение перезапустится."
-                alert.addButton(withTitle: "Скачать")
-                alert.addButton(withTitle: "Позже")
+                alert.messageText = L("Доступна K530 Lighting \(version)", "K530 Lighting \(version) is available")
+                alert.informativeText = L("Скачать обновление? После проверки оно установится автоматически, и приложение перезапустится.",
+                                          "Download the update? After verification, it will install automatically and the app will restart.")
+                alert.addButton(withTitle: L("Скачать", "Download"))
+                alert.addButton(withTitle: L("Позже", "Later"))
                 NSApp.activate(ignoringOtherApps: true)
                 guard alert.runModal() == .alertFirstButtonReturn else {
                     UserDefaults.standard.set(Date().addingTimeInterval(24 * 60 * 60).timeIntervalSince1970, forKey: "UpdateReminderDate"); return
                 }
                 guard self.canStartUpdate() else {
-                    self.message = "Дождитесь завершения операции с клавиатурой и повторите обновление."
+                    self.statusText = AppText("Дождитесь завершения операции с клавиатурой и повторите обновление.", "Wait for the keyboard operation to finish, then try the update again.")
                     return
                 }
                 self.onPresentationRequested()
@@ -142,7 +156,14 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
 
     private func fail(_ error: Error) {
-        message = error.localizedDescription
+        if let localized = error as? AppLocalizedError {
+            statusText = localized.appText
+        } else {
+            // Системный текст ошибки остаётся в языке macOS; наше пояснение
+            // сохраняет обе версии и меняется вместе с интерфейсом.
+            let detail = error.localizedDescription
+            statusText = AppText("Ошибка обновления: \(detail)", "Update error: \(detail)")
+        }
         progress = nil
         isBusy = false
         pendingManifest = nil
@@ -178,7 +199,7 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
             NSWorkspace.shared.open(releasePage)
             return
         }
-        isBusy = true; message = "Проверка подписи обновления…"; progress = nil
+        isBusy = true; statusText = AppText("Проверка подписи обновления…", "Verifying the update signature…"); progress = nil
         DispatchQueue.global(qos: .utility).async {
             do {
                 guard let manifestAsset = release.assets.first(where: { $0.name == "update.json" }),
@@ -192,7 +213,7 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
                 guard manifest.version == tag else { throw UpdateFailure.invalidManifest }
                 DispatchQueue.main.async {
                     self.pendingManifest = manifest
-                    self.message = "Загрузка обновления…"; self.progress = 0
+                    self.statusText = AppText("Загрузка обновления…", "Downloading the update…"); self.progress = 0
                     let configuration = URLSessionConfiguration.ephemeral
                     configuration.timeoutIntervalForRequest = 60
                     configuration.timeoutIntervalForResource = 30 * 60
@@ -207,7 +228,7 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         if totalBytesWritten > maximumArchiveSize || totalBytesExpectedToWrite > maximumArchiveSize { downloadTask.cancel(); return }
-        state("Загрузка обновления…", progress: totalBytesExpectedToWrite > 0 ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) : nil)
+        state(AppText("Загрузка обновления…", "Downloading the update…"), progress: totalBytesExpectedToWrite > 0 ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) : nil)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -219,7 +240,7 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
             staging = dir
             let archive = dir.appendingPathComponent("update.zip")
             try FileManager.default.copyItem(at: location, to: archive)
-            state("Проверка загруженного архива…")
+            state(AppText("Проверка загруженного архива…", "Verifying the downloaded archive…"))
             let bytes = try Data(contentsOf: archive, options: .mappedIfSafe)
             let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
             guard hash == manifest.sha256.lowercased() else { throw UpdateFailure.invalidArchive }
@@ -237,7 +258,8 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
         let process = Process(); process.executableURL = URL(fileURLWithPath: executable); process.arguments = arguments
         process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
         try process.run(); process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw UpdateFailure.installation(URL(fileURLWithPath: executable).lastPathComponent) }
+        guard process.terminationStatus == 0 else { throw UpdateFailure.installation(AppText(URL(fileURLWithPath: executable).lastPathComponent,
+                                                                                           URL(fileURLWithPath: executable).lastPathComponent)) }
     }
 
     /// Сначала проверяет подпись архива, затем распаковывает и проверяет bundle. Старая версия остаётся для отката.
@@ -247,10 +269,11 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
             self.onPresentationRequested()
             allowed = self.canStartUpdate()
         }
-        guard allowed else { throw UpdateFailure.installation("Выполняется операция с клавиатурой. Повторите обновление позже.") }
+        guard allowed else { throw UpdateFailure.installation(AppText("Выполняется операция с клавиатурой. Повторите обновление позже.",
+                                                                          "A keyboard operation is in progress. Try the update again later.")) }
         let fm = FileManager.default
         let unpacked = directory.appendingPathComponent("unpacked")
-        state("Распаковка обновления…")
+        state(AppText("Распаковка обновления…", "Extracting the update…"))
         try run("/usr/bin/ditto", ["-x", "-k", archive.path, unpacked.path])
         let app = unpacked.appendingPathComponent("K530Lighting.app")
         guard let bundle = Bundle(url: app), bundle.bundleIdentifier == Bundle.main.bundleIdentifier,
@@ -262,11 +285,12 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
         let parent = destination.deletingLastPathComponent()
         guard destination.pathExtension == "app", !destination.path.contains("/AppTranslocation/"),
               fm.isWritableFile(atPath: parent.path), fm.isWritableFile(atPath: destination.path) else {
-            throw UpdateFailure.installation("Переместите приложение в доступную для записи папку «Программы» и повторите проверку.")
+            throw UpdateFailure.installation(AppText("Переместите приложение в доступную для записи папку «Программы» и повторите проверку.",
+                                                     "Move the app to a writable Applications folder, then check again."))
         }
-        state("Установка обновления…")
+        state(AppText("Установка обновления…", "Installing the update…"))
         _ = try UpdateInstaller.replace(source: app, destination: destination) {
-            self.state("Обновление установлено. Перезапуск…", progress: 1)
+            self.state(AppText("Обновление установлено. Перезапуск…", "Update installed. Restarting…"), progress: 1)
             try self.run("/usr/bin/open", ["-n", destination.path])
         }
         try? fm.removeItem(at: directory)

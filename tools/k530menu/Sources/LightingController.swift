@@ -12,12 +12,12 @@ final class LightingDeviceService {
     enum Action { case read, apply(LightingSettings), restore }
     struct Snapshot {
         let settings: LightingSettings?
-        let message: String
+        let message: AppText
         let canRestore: Bool
     }
-    private struct DeviceError: LocalizedError {
-        let errorDescription: String?
-        init(_ message: String) { errorDescription = message }
+    private struct DeviceError: AppLocalizedError {
+        let appText: AppText
+        init(_ russian: String, _ english: String) { appText = AppText(russian, english) }
     }
 
     func perform(_ action: Action, completion: @escaping (Result<Snapshot, Error>) -> Void) {
@@ -29,44 +29,44 @@ final class LightingDeviceService {
 
     private func execute(_ action: Action) throws -> Snapshot {
         guard IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted else {
-            throw DeviceError("Нужен доступ «Мониторинг ввода» в системных настройках.")
+            throw DeviceError("Нужен доступ «Мониторинг ввода» в системных настройках.", "Input Monitoring permission is required in System Settings.")
         }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         IOHIDManagerSetDeviceMatching(manager, [kIOHIDVendorIDKey: vendorID, kIOHIDProductIDKey: productID] as CFDictionary)
         guard IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
-            throw DeviceError("Не удалось открыть USB HID.")
+            throw DeviceError("Не удалось открыть USB HID.", "Could not open USB HID.")
         }
         defer { IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone)) }
         let devices = (IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>) ?? []
         guard let device = devices.first(where: {
             (IOHIDDeviceGetProperty($0, "MaxOutputReportSize" as CFString) as? Int) == 64
         }), let session = K530Session(device: device) else {
-            throw DeviceError("Клавиатура не найдена. Подключите K530 по USB.")
+            throw DeviceError("Клавиатура не найдена. Подключите K530 по USB.", "Keyboard not found. Connect the K530 over USB.")
         }
         guard let before = session.readProfiles(), before.count == 3 else {
-            throw DeviceError("Клавиатура не ответила. Проверьте USB и разрешения.")
+            throw DeviceError("Клавиатура не ответила. Проверьте USB и разрешения.", "The keyboard did not respond. Check USB and permissions.")
         }
         if initial == nil { initial = before }
         switch action {
         case .read: break
         case .apply(let settings):
             guard before.allSatisfy({ LightingSettings(profile: $0) != nil }) else {
-                throw DeviceError("Необычные значения профилей: запись отменена.")
+                throw DeviceError("Необычные значения профилей: запись отменена.", "Unexpected profile values: write canceled.")
             }
             try backup(before)
             guard session.writeFields(settings.fields) else {
-                throw DeviceError("Ошибка записи. Часть настроек могла измениться; перечитайте устройство.")
+                throw DeviceError("Ошибка записи. Часть настроек могла измениться; перечитайте устройство.", "Write failed. Some settings may have changed; read the device again.")
             }
         case .restore:
-            guard let original = initial else { throw DeviceError("Исходное состояние ещё не прочитано.") }
+            guard let original = initial else { throw DeviceError("Исходное состояние ещё не прочитано.", "The initial state has not been read yet.") }
             try backup(before)
-            guard session.restoreHeads(original) else { throw DeviceError("Не удалось вернуть исходные настройки.") }
+            guard session.restoreHeads(original) else { throw DeviceError("Не удалось вернуть исходные настройки.", "Could not restore the initial settings.") }
         }
         let after: [[UInt8]]
         if case .read = action { after = before }
         else {
             guard let profiles = session.readProfiles(), profiles.count == 3 else {
-                throw DeviceError("Запись отправлена, но проверка не удалась. Перечитайте устройство.")
+                throw DeviceError("Запись отправлена, но проверка не удалась. Перечитайте устройство.", "The write was sent, but verification failed. Read the device again.")
             }
             after = profiles
         }
@@ -74,16 +74,17 @@ final class LightingDeviceService {
         case .apply(let settings):
             guard after.allSatisfy({ profile in settings.fields.allSatisfy {
                 Array(profile[$0.offset..<($0.offset + $0.data.count)]) == $0.data
-            } }) else { throw DeviceError("Проверка записи не пройдена. Можно вернуть исходное состояние.") }
+            } }) else { throw DeviceError("Проверка записи не пройдена. Можно вернуть исходное состояние.", "Write verification failed. You can restore the initial state.") }
         case .restore:
             guard let original = initial, zip(after, original).allSatisfy({
                 Array($0.0.prefix(8)) == Array($0.1.prefix(8))
-            }) else { throw DeviceError("Проверка восстановления не пройдена.") }
+            }) else { throw DeviceError("Проверка восстановления не пройдена.", "Restore verification failed.") }
         case .read: break
         }
         let same = after.dropFirst().allSatisfy { Array($0.prefix(8)) == Array(after[0].prefix(8)) }
         return Snapshot(settings: same ? LightingSettings(profile: after[0]) : nil,
-                        message: same ? "Настройки прочитаны из клавиатуры" : "Профили различаются. Применение синхронизирует все три.",
+                        message: same ? AppText("Настройки прочитаны из клавиатуры", "Settings read from the keyboard") :
+                            AppText("Профили различаются. Применение синхронизирует все три.", "Hardware profiles differ. Applying settings synchronizes all three."),
                         canRestore: initial != nil)
     }
 
@@ -108,13 +109,15 @@ final class LightingController: ObservableObject {
     @Published private(set) var connected = false
     @Published private(set) var busy = false
     @Published private(set) var canRestore = false
-    @Published private(set) var message = "Подключите клавиатуру по USB"
+    @Published private var statusText = AppText("Подключите клавиатуру по USB", "Connect the keyboard over USB")
+    var message: String { statusText.value }
     @Published private(set) var error = false
     @Published var autostart = false
     @Published private(set) var needsPermission = false
     var restartApplication: () -> Void = {}
     @Published private(set) var profileDocument = LightingProfileDocument.defaults()
-    @Published private(set) var profileError: String?
+    @Published private var profileErrorText: AppText?
+    var profileError: String? { profileErrorText?.value }
     private let profileStore: LightingProfileStore
     private var profileDrafts: [UUID: LightingSettings] = [:]
     private var hasStoredProfiles = false
@@ -134,7 +137,7 @@ final class LightingController: ObservableObject {
                 profileDocument = document; hasStoredProfiles = true
             }
             draft = selectedProfile?.settings ?? LightingSettings()
-        } catch { profileError = "Профили: \(error.localizedDescription)" }
+        } catch { setProfileError(error) }
     }
 
     /// Переключение хранит несохранённый черновик каждого набора отдельно.
@@ -155,13 +158,15 @@ final class LightingController: ObservableObject {
         document.profiles[index].settings = draft
         guard persistProfiles(document) else { return }
         profileDocument = document; profileDrafts[selectedProfileID] = draft
-        message = "Профиль «\(document.profiles[index].name)» сохранён"
+        let name = document.profiles[index].name
+        statusText = AppText("Профиль «\(name)» сохранён", "Profile “\(name)” saved")
     }
 
     func createProfile() {
         guard !busy, !updaterBusy() else { return }
         profileDrafts[selectedProfileID] = draft
-        let profile = LightingProfile(name: "Профиль \(profiles.count + 1)", settings: draft)
+        let number = profiles.count + 1
+        let profile = LightingProfile(name: L("Профиль \(number)", "Profile \(number)"), settings: draft)
         var document = profileDocument; document.profiles.append(profile); document.selectedID = profile.id
         guard persistProfiles(document) else { return }
         profileDocument = document
@@ -181,9 +186,9 @@ final class LightingController: ObservableObject {
     @discardableResult
     private func persistProfiles(_ document: LightingProfileDocument) -> Bool {
         do {
-            try profileStore.save(document); profileError = nil; hasStoredProfiles = true
+            try profileStore.save(document); profileErrorText = nil; hasStoredProfiles = true
             return true
-        } catch { profileError = "Профили: \(error.localizedDescription)"; return false }
+        } catch { setProfileError(error); return false }
     }
     var showHelp: () -> Void = {}
     var checkUpdates: () -> Void = {}
@@ -191,7 +196,7 @@ final class LightingController: ObservableObject {
 
     func deviceRemoved() {
         generation += 1; connected = false; busy = false
-        message = "Клавиатура отключена. Подключите K530 по USB."
+        statusText = AppText("Клавиатура отключена. Подключите K530 по USB.", "Keyboard disconnected. Connect the K530 over USB.")
     }
     /// Проверяется при возвращении из настроек. macOS может потребовать перезапуск
     /// процесса даже после включения переключателя — для этого есть отдельное действие.
@@ -220,7 +225,7 @@ final class LightingController: ObservableObject {
         if case .read = action { preserveDraft = hasStoredProfiles || hasUnsavedProfileChanges || (saved != nil && hasChanges) }
         else { preserveDraft = false }
         busy = true; error = false
-        message = "Обмен с клавиатурой…"
+        statusText = AppText("Обмен с клавиатурой…", "Communicating with the keyboard…")
         service.perform(action) { [weak self] result in
             guard let self = self, self.generation == operationGeneration else { return }
             self.busy = false
@@ -229,14 +234,27 @@ final class LightingController: ObservableObject {
                 self.connected = true; self.canRestore = snapshot.canRestore
                 self.saved = snapshot.settings
                 if let settings = snapshot.settings, !preserveDraft { self.draft = settings }
-                if case .apply = action { self.message = "Настройки сохранены в клавиатуре" }
-                else if case .restore = action { self.message = "Исходное состояние восстановлено" }
-                else { self.message = snapshot.message }
+                if case .apply = action { self.statusText = AppText("Настройки сохранены в клавиатуре", "Settings saved to the keyboard") }
+                else if case .restore = action { self.statusText = AppText("Исходное состояние восстановлено", "Initial state restored") }
+                else { self.statusText = snapshot.message }
             case .failure(let error):
                 self.needsPermission = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted
-                self.error = true; self.connected = false; self.message = error.localizedDescription
+                self.error = true; self.connected = false; self.statusText = self.localizedErrorText(error)
             }
         }
+    }
+
+    /// Ошибки приложения сохраняют две версии. Системный текст macOS остаётся
+    /// в системной локали, но наши пояснения и префиксы переключаются немедленно.
+    private func localizedErrorText(_ error: Error) -> AppText {
+        if let localized = error as? AppLocalizedError { return localized.appText }
+        let detail = error.localizedDescription
+        return AppText(detail, detail)
+    }
+
+    private func setProfileError(_ error: Error) {
+        let detail = localizedErrorText(error)
+        profileErrorText = AppText("Профили: \(detail.russian)", "Profiles: \(detail.english)")
     }
 
     private var agentURL: URL {
@@ -259,6 +277,10 @@ final class LightingController: ObservableObject {
                 try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: agentURL, options: .atomic)
             }
             loadAutostart()
-        } catch { self.error = true; message = "Автозапуск: \(error.localizedDescription)" }
+        } catch {
+            self.error = true
+            let detail = localizedErrorText(error)
+            statusText = AppText("Автозапуск: \(detail.russian)", "Launch at login: \(detail.english)")
+        }
     }
 }

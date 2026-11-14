@@ -2,12 +2,12 @@
 
 # Уведомление о лицензии
 
-Лицензия [MIT](LICENSE) распространяется только на новый код и документацию автора: `tools/`, `docs/` (текст), `research/protocol-findings.md` и `research/protocol-findings.en.md`.
+Лицензия [MIT](LICENSE) распространяется только на новый код и документацию автора: `tools/`, `docs/` (текст и оригинальные баннеры `docs/images/banner.svg`, `docs/images/banner-en.svg`), `research/protocol-findings.md` и `research/protocol-findings.en.md`.
 
 Она **не распространяется** на:
 
 - Windows-установщик производителя (в репозиторий не входит) и всё, что в нём содержится;
 - фирменные бинарники и графику Redragon / Sonix;
-- иконку и изображения сторонних авторов (`tools/k530menu/Icon/source/`, а также `docs/images/banner*`, если они построены на таких изображениях).
+- иконку и изображения сторонних авторов (`tools/k530menu/Icon/source/`).
 
 На эти материалы действуют условия их правообладателей.

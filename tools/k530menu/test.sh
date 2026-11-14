@@ -10,7 +10,7 @@ trap 'rm -rf "$WORK_DIR"' EXIT HUP INT TERM
 run_test() {
     test_name=$1
     shift
-    swiftc -module-cache-path "$MODULE_CACHE" "$@" -o "$WORK_DIR/$test_name"
+    swiftc -module-cache-path "$MODULE_CACHE" Sources/AppLocalization.swift "$@" -o "$WORK_DIR/$test_name"
     "$WORK_DIR/$test_name"
 }
 run_test settings Sources/LightingSettings.swift Tests/LightingSettingsTests.swift
@@ -18,3 +18,5 @@ run_test profiles Sources/LightingSettings.swift Sources/LightingProfileStore.sw
 run_test controller Sources/LightingSettings.swift Sources/LightingProfileStore.swift Sources/LightingController.swift \
     ../k530diag/Sources/k530diag/Protocol.swift ../k530diag/Sources/k530diag/Session.swift Tests/LightingControllerProfileTests.swift
 run_test updater -framework CryptoKit Sources/AppUpdater.swift Tests/UpdaterTests.swift
+run_test localization -framework CryptoKit Sources/FaqWindowController.swift Sources/AppUpdater.swift Sources/LightingSettings.swift Sources/LightingProfileStore.swift Sources/LightingController.swift \
+    ../k530diag/Sources/k530diag/Protocol.swift ../k530diag/Sources/k530diag/Session.swift Tests/AppLocalizationTests.swift
