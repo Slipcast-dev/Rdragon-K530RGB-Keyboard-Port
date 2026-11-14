@@ -1,3 +1,5 @@
+**Русский** | [English](README_EN.md)
+
 # Исходная картинка иконки
 
 `dragon-emblem.png` — растровая копия файла `year-dragon-vector-chinesestyle-zodiac-symbol-isolated-white-background_8130-2619.avif`

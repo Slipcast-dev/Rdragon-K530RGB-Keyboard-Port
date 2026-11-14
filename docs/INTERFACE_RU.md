@@ -1,3 +1,5 @@
+**Русский** | [English](INTERFACE_EN.md)
+
 # Интерфейс K530 Lighting 0.3.2
 
 ## Архитектура

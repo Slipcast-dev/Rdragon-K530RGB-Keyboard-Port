@@ -1,3 +1,5 @@
+**Русский** | [English](k530-usb-descriptors.en.md)
+
 # Дескрипторы реальной K530 (USB-кабель)
 
 Снято 27 октября 2026, macOS 13 (Darwin 22.6, Intel MacBook), через `ioreg`. Серийных номеров нет.
