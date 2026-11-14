@@ -1,0 +1,20 @@
+{
+  "status": "Static candidates; verify against physical USB HID descriptors before use",
+  "candidates": [
+    {
+      "virtual_address": "0x65505c",
+      "file_offset": "0x253a5c",
+      "bytes": "0f 00 00 00 45 0c 04 50 ff ff 01 00 00 00 00 00 00 60 43 00 54 41 54 53"
+    },
+    {
+      "virtual_address": "0x655074",
+      "file_offset": "0x253a74",
+      "bytes": "0f 00 00 00 45 0c 04 50 0c 00 01 00 00 00 00 00 00 60 43 00 53 4e 4f 43"
+    },
+    {
+      "virtual_address": "0x65508c",
+      "file_offset": "0x253a8c",
+      "bytes": "0f 00 00 00 45 0c 04 50 1c ff 92 00 00 00 00 00 00 60 43 00 4c 52 54 43"
+    }
+  ]
+}

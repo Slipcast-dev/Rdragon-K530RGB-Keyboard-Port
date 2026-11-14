@@ -1,0 +1,30 @@
+.DS_Store
+Thumbs.db
+restored-research/
+.build/
+DerivedData/
+build/
+.env
+.env.*
+!.env.example
+*.xcuserstate
+xcuserdata/
+
+# Локальные материалы; публичная загрузка требует отдельного согласования.
+research/static-analysis.zip
+research/application-pe.txt
+research/hidserv-pe.txt
+
+# Локальные настройки Claude Code
+.claude/
+__pycache__/
+*.pyc
+.build.log
+
+# Ключи, сертификаты и профили подписи
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
