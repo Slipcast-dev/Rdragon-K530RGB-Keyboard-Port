@@ -99,7 +99,12 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
             DispatchQueue.main.async {
                 self.checking = false
                 guard error == nil, let http = response as? HTTPURLResponse else { self.fail(UpdateFailure.network); return }
-                if http.statusCode == 404 { self.message = "Новых выпусков пока нет"; return }
+                if http.statusCode == 404 {
+                    // GitHub скрывает приватные репозитории ответом 404; это
+                    // не подтверждает отсутствие обновлений установленной версии.
+                    self.message = "Проверка недоступна: нет общедоступного релиза или репозиторий закрыт"
+                    return
+                }
                 guard http.statusCode == 200, let data = data,
                       let release = try? JSONDecoder().decode(Release.self, from: data) else { self.fail(UpdateFailure.network); return }
                 let version = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
