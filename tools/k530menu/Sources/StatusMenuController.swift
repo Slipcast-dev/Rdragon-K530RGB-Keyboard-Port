@@ -40,7 +40,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let effectItem = NSMenuItem(title: L("Эффект — применить", "Effect — Apply"), action: nil, keyEquivalent: "")
         effectItem.submenu = effects; menu.addItem(effectItem)
         let brightness = NSMenu(); brightness.autoenablesItems = false
-        for (level, _) in brightnessLevels {
+        for level in brightnessLevels {
             let entry = item(localizedBrightnessName(level), #selector(selectBrightness(_:)))
             entry.tag = level; entry.state = Int(model.draft.brightness) == level ? .on : .off
             entry.isEnabled = enabled; brightness.addItem(entry)
@@ -50,7 +50,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         let read = item(L("Перечитать устройство", "Read Device Settings"), #selector(refresh))
         read.isEnabled = !model.busy && !updater.isBusy; menu.addItem(read)
-        let updates = item(L("Проверить обновления…", "Check for Updates…"), #selector(checkUpdates))
+        let updates = item(updater.availableVersion.map { L("Установить версию \($0)…", "Install Version \($0)…") }
+                           ?? L("Проверить обновления…", "Check for Updates…"), #selector(checkUpdates))
         updates.isEnabled = !model.busy && !updater.isBusy; menu.addItem(updates)
         let restart = item(L("Перезапустить", "Restart"), #selector(restart))
         restart.isEnabled = !model.busy && !updater.isBusy; menu.addItem(restart)
@@ -79,10 +80,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
     @objc private func selectMode(_ sender: NSMenuItem) {
         guard let mode = UInt8(exactly: sender.tag), knownModes.contains(mode) else { return }
-        model.draft.mode = mode; model.apply()
+        model.applyQuick { $0.mode = mode }
     }
     @objc private func selectBrightness(_ sender: NSMenuItem) {
         guard (0...4).contains(sender.tag) else { return }
-        model.draft.brightness = Double(sender.tag); model.apply()
+        let level = Double(sender.tag)
+        model.applyQuick { $0.brightness = level }
     }
 }

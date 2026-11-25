@@ -11,10 +11,25 @@ struct UpdateManifest: Codable {
     let minimumSystemVersion: String
 
     /// Проверка подписи до декодирования исключает подмену URL, версии и контрольной суммы.
-    static func decodeSigned(_ bytes: Data, signature: Data, publicKey: Data) throws -> UpdateManifest {
-        let key = try Curve25519.Signing.PublicKey(rawRepresentation: publicKey)
-        guard key.isValidSignature(signature, for: bytes) else { throw UpdateFailure.signature }
+    /// Достаточно подписи любым из доверенных ключей: так выпуск переходного периода
+    /// при смене ключа подписывается старым ключом, а приложение уже знает новый.
+    static func decodeSigned(_ bytes: Data, signature: Data, publicKeys: [Data]) throws -> UpdateManifest {
+        let keys = publicKeys.compactMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+        guard keys.contains(where: { $0.isValidSignature(signature, for: bytes) }) else { throw UpdateFailure.signature }
         return try JSONDecoder().decode(Self.self, from: bytes)
+    }
+
+    static func decodeSigned(_ bytes: Data, signature: Data, publicKey: Data) throws -> UpdateManifest {
+        try decodeSigned(bytes, signature: signature, publicKeys: [publicKey])
+    }
+
+    /// UpdatePublicKey.txt: по одному ключу Ed25519 (base64) в строке; пустые строки и «#»-комментарии пропускаются.
+    static func trustedKeys(from text: String) -> [Data] {
+        text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+            .compactMap { Data(base64Encoded: $0) }
+            .filter { (try? Curve25519.Signing.PublicKey(rawRepresentation: $0)) != nil }
     }
 
     static func newer(_ candidate: String, than current: String) -> Bool {
@@ -73,6 +88,9 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
     var message: String { statusText.value }
     @Published private(set) var progress: Double?
     @Published private(set) var isBusy = false
+    /// Версия, найденная проверкой. Автоматическая проверка не открывает модальное окно:
+    /// о ней сообщают строка состояния панели и пункт меню значка.
+    @Published private(set) var availableVersion: String?
     private(set) var readyToRelaunch = false
     /// Хост запрещает установку во время незавершённого HID-обмена и открывает панель с прогрессом.
     var canStartUpdate: () -> Bool = { true }
@@ -81,8 +99,8 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
     private let releasePage = URL(string: "https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/latest")!
     private var timer: Timer?
     private var downloadSession: URLSession?
+    /// Манифест текущей загрузки. Читается и пишется только на главном потоке.
     private var pendingManifest: UpdateManifest?
-    private var staging: URL?
     private var checking = false
     private let maximumArchiveSize: Int64 = 250 * 1024 * 1024
     private var currentBuild: Int { Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0") ?? 0 }
@@ -90,11 +108,20 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
 
     func start() {
         guard timer == nil else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in self?.check(manual: false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            self?.removeInstallLeftovers()
+            self?.check(manual: false)
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in self?.check(manual: false) }
     }
 
     func checkManually() { check(manual: true) }
+
+    /// Эта версия проработала 30 с, значит копия прежней установки для ручного отката больше не нужна.
+    private func removeInstallLeftovers() {
+        let parent = Bundle.main.bundleURL.resolvingSymlinksInPath().deletingLastPathComponent()
+        DispatchQueue.global(qos: .utility).async { UpdateInstaller.removeLeftovers(in: parent) }
+    }
 
     private func state(_ text: AppText, progress: Double? = nil) {
         DispatchQueue.main.async { self.statusText = text; self.progress = progress }
@@ -122,11 +149,13 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
                       let release = try? JSONDecoder().decode(Release.self, from: data) else { self.fail(UpdateFailure.network); return }
                 let version = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
                 guard !release.prerelease, !release.draft, UpdateManifest.newer(version, than: self.currentVersion) else {
+                    self.availableVersion = nil
                     self.statusText = AppText("Установлена актуальная версия", "You have the latest version"); return
                 }
+                self.availableVersion = version
                 self.statusText = AppText("Доступна версия \(version)", "Version \(version) is available")
-                let deferred = UserDefaults.standard.double(forKey: "UpdateReminderDate")
-                if !manual && deferred > Date().timeIntervalSince1970 { return }
+                // Фоновая проверка не перехватывает фокус: установка — по команде пользователя.
+                guard manual else { return }
                 let alert = NSAlert()
                 alert.messageText = L("Доступна K530 Lighting \(version)", "K530 Lighting \(version) is available")
                 alert.informativeText = L("Скачать обновление? После проверки оно установится автоматически, и приложение перезапустится.",
@@ -134,9 +163,7 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
                 alert.addButton(withTitle: L("Скачать", "Download"))
                 alert.addButton(withTitle: L("Позже", "Later"))
                 NSApp.activate(ignoringOtherApps: true)
-                guard alert.runModal() == .alertFirstButtonReturn else {
-                    UserDefaults.standard.set(Date().addingTimeInterval(24 * 60 * 60).timeIntervalSince1970, forKey: "UpdateReminderDate"); return
-                }
+                guard alert.runModal() == .alertFirstButtonReturn else { return }
                 guard self.canStartUpdate() else {
                     self.statusText = AppText("Дождитесь завершения операции с клавиатурой и повторите обновление.", "Wait for the keyboard operation to finish, then try the update again.")
                     return
@@ -155,6 +182,7 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
         let assets: [Asset]
     }
 
+    /// Вызывается на главном потоке. Временный каталог удаляет тот, кто его создал.
     private func fail(_ error: Error) {
         if let localized = error as? AppLocalizedError {
             statusText = localized.appText
@@ -167,62 +195,61 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
         progress = nil
         isBusy = false
         pendingManifest = nil
-        if let dir = staging { try? FileManager.default.removeItem(at: dir) }
-        staging = nil
     }
 
-    /// Получает только небольшие служебные файлы. Подлинность JSON проверяется встроенным публичным ключом.
-    private func fetch(_ url: URL) throws -> Data {
+    /// Получает только небольшие служебные файлы, не блокируя потоки ожиданием.
+    /// Подлинность JSON проверяется встроенным публичным ключом.
+    private func fetch(_ url: URL, completion: @escaping (Result<Data, Error>) -> Void) {
         guard url.scheme == "https", url.host == "github.com",
-              url.path.hasPrefix("/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/download/") else { throw UpdateFailure.invalidManifest }
-        let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<Data, Error> = .failure(UpdateFailure.network)
+              url.path.hasPrefix("/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/download/") else {
+            completion(.failure(UpdateFailure.invalidManifest)); return
+        }
         var request = URLRequest(url: url); request.timeoutInterval = 30
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let data = data, data.count <= 65536, error == nil,
                (response as? HTTPURLResponse)?.statusCode == 200 {
-                result = .success(data)
-            }
-            semaphore.signal()
-        }
-        task.resume()
-        guard semaphore.wait(timeout: .now() + 35) == .success else { task.cancel(); throw UpdateFailure.network }
-        return try result.get()
+                completion(.success(data))
+            } else { completion(.failure(UpdateFailure.network)) }
+        }.resume()
     }
 
     private func prepare(_ release: Release) {
         guard let keyURL = Bundle.main.url(forResource: "UpdatePublicKey", withExtension: "txt"),
-              let keyText = try? String(contentsOf: keyURL),
-              let keyBytes = Data(base64Encoded: keyText.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let key = try? Curve25519.Signing.PublicKey(rawRepresentation: keyBytes) else {
-            fail(UpdateFailure.missingKey)
-            NSWorkspace.shared.open(releasePage)
-            return
+              let keyText = try? String(contentsOf: keyURL, encoding: .utf8) else {
+            fail(UpdateFailure.missingKey); NSWorkspace.shared.open(releasePage); return
         }
+        let keys = UpdateManifest.trustedKeys(from: keyText)
+        guard !keys.isEmpty else { fail(UpdateFailure.missingKey); NSWorkspace.shared.open(releasePage); return }
+        guard let manifestAsset = release.assets.first(where: { $0.name == "update.json" }),
+              let signatureAsset = release.assets.first(where: { $0.name == "update.json.sig" }) else {
+            fail(UpdateFailure.invalidManifest); return
+        }
+        let tag = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
+        let build = currentBuild
         isBusy = true; statusText = AppText("Проверка подписи обновления…", "Verifying the update signature…"); progress = nil
-        DispatchQueue.global(qos: .utility).async {
-            do {
-                guard let manifestAsset = release.assets.first(where: { $0.name == "update.json" }),
-                      let signatureAsset = release.assets.first(where: { $0.name == "update.json.sig" }) else { throw UpdateFailure.invalidManifest }
-                let bytes = try self.fetch(manifestAsset.browser_download_url)
-                let encoded = try self.fetch(signatureAsset.browser_download_url)
-                guard let signature = Data(base64Encoded: encoded, options: .ignoreUnknownCharacters) else { throw UpdateFailure.signature }
-                let manifest = try UpdateManifest.decodeSigned(bytes, signature: signature, publicKey: key.rawRepresentation)
-                let url = try manifest.validate(currentBuild: self.currentBuild)
-                let tag = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
-                guard manifest.version == tag else { throw UpdateFailure.invalidManifest }
-                DispatchQueue.main.async {
-                    self.pendingManifest = manifest
-                    self.statusText = AppText("Загрузка обновления…", "Downloading the update…"); self.progress = 0
-                    let configuration = URLSessionConfiguration.ephemeral
-                    configuration.timeoutIntervalForRequest = 60
-                    configuration.timeoutIntervalForResource = 30 * 60
-                    let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-                    self.downloadSession = session
-                    session.downloadTask(with: url).resume()
-                }
-            } catch { DispatchQueue.main.async { self.fail(error) } }
+        fetch(manifestAsset.browser_download_url) { manifestResult in
+            self.fetch(signatureAsset.browser_download_url) { signatureResult in
+                do {
+                    let bytes = try manifestResult.get(), encoded = try signatureResult.get()
+                    guard let signature = Data(base64Encoded: encoded, options: .ignoreUnknownCharacters) else { throw UpdateFailure.signature }
+                    let manifest = try UpdateManifest.decodeSigned(bytes, signature: signature, publicKeys: keys)
+                    let url = try manifest.validate(currentBuild: build)
+                    guard manifest.version == tag else { throw UpdateFailure.invalidManifest }
+                    DispatchQueue.main.async { self.startDownload(url, manifest: manifest) }
+                } catch { DispatchQueue.main.async { self.fail(error) } }
+            }
         }
+    }
+
+    private func startDownload(_ url: URL, manifest: UpdateManifest) {
+        pendingManifest = manifest
+        statusText = AppText("Загрузка обновления…", "Downloading the update…"); progress = 0
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 60
+        configuration.timeoutIntervalForResource = 30 * 60
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        downloadSession = session
+        session.downloadTask(with: url).resume()
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
@@ -231,10 +258,13 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
         state(AppText("Загрузка обновления…", "Downloading the update…"), progress: totalBytesExpectedToWrite > 0 ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) : nil)
     }
 
+    /// Выполняется в очереди URLSession. Общее состояние читается через main, каталог — локальный.
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        let pending = DispatchQueue.main.sync { self.pendingManifest }
+        var staging: URL?
         do {
             guard (downloadTask.response as? HTTPURLResponse)?.statusCode == 200,
-                  let manifest = pendingManifest else { throw UpdateFailure.network }
+                  let manifest = pending else { throw UpdateFailure.network }
             let dir = FileManager.default.temporaryDirectory.appendingPathComponent("K530Update-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             staging = dir
@@ -245,7 +275,10 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
             let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
             guard hash == manifest.sha256.lowercased() else { throw UpdateFailure.invalidArchive }
             try install(archive: archive, directory: dir, manifest: manifest)
-        } catch { DispatchQueue.main.async { self.fail(error) } }
+        } catch {
+            if let dir = staging { try? FileManager.default.removeItem(at: dir) }
+            DispatchQueue.main.async { self.fail(error) }
+        }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -262,7 +295,9 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
                                                                                            URL(fileURLWithPath: executable).lastPathComponent)) }
     }
 
-    /// Сначала проверяет подпись архива, затем распаковывает и проверяет bundle. Старая версия остаётся для отката.
+    /// Подлинность архива уже подтверждена хэшем из подписанного манифеста. Здесь архив
+    /// распаковывается и проверяется bundle; `codesign --verify` для ad-hoc подписи
+    /// подтверждает только целостность пакета, а не автора. Старая версия остаётся для отката.
     private func install(archive: URL, directory: URL, manifest: UpdateManifest) throws {
         var allowed = false
         DispatchQueue.main.sync {
@@ -303,27 +338,47 @@ final class AppUpdater: NSObject, ObservableObject, URLSessionDownloadDelegate {
 
 /// Транзакция замены выделена отдельно: откат проверяется на временных каталогах без запуска приложения.
 enum UpdateInstaller {
+    static let backupPrefix = ".K530Lighting-backup-"
+    static let updatePrefix = ".K530Lighting-update-"
+
+    /// Откат опирается только на переименования в одном каталоге: они атомарны,
+    /// а удаление дерева .app может оборваться на середине и оставить битую копию.
     @discardableResult
     static func replace(source: URL, destination: URL, launch: () throws -> Void) throws -> URL {
         let fm = FileManager.default, parent = destination.deletingLastPathComponent()
-        let replacement = parent.appendingPathComponent(".K530Lighting-update-\(UUID().uuidString).app")
-        let backup = parent.appendingPathComponent(".K530Lighting-backup-\(UUID().uuidString).app")
+        let replacement = parent.appendingPathComponent("\(updatePrefix)\(UUID().uuidString).app")
+        let backup = parent.appendingPathComponent("\(backupPrefix)\(UUID().uuidString).app")
         try fm.copyItem(at: source, to: replacement)
-        do {
-            try fm.moveItem(at: destination, to: backup)
-            do { try fm.moveItem(at: replacement, to: destination) }
-            catch { try fm.moveItem(at: backup, to: destination); throw error }
-            do { try launch() }
-            catch {
-                try fm.removeItem(at: destination)
-                try fm.moveItem(at: backup, to: destination)
-                throw error
-            }
-            // Сохраняем старую .app для ручного восстановления при сбое уже запущенной новой версии.
-            return backup
-        } catch {
+        do { try fm.moveItem(at: destination, to: backup) }
+        catch { try? fm.removeItem(at: replacement); throw error }
+        do { try fm.moveItem(at: replacement, to: destination) }
+        catch {
+            try? fm.moveItem(at: backup, to: destination)
             try? fm.removeItem(at: replacement)
             throw error
+        }
+        do { try launch() }
+        catch {
+            let failed = parent.appendingPathComponent("\(updatePrefix)\(UUID().uuidString).app")
+            try fm.moveItem(at: destination, to: failed)
+            do { try fm.moveItem(at: backup, to: destination) }
+            catch { try? fm.moveItem(at: failed, to: destination); throw error }
+            try? fm.removeItem(at: failed)
+            throw error
+        }
+        // Старая .app остаётся, пока новая версия не проработает 30 с (removeLeftovers в start()).
+        return backup
+    }
+
+    /// Удаляет только скрытые копии, созданные replace: точный префикс, UUID и расширение .app.
+    /// Символическая ссылка удаляется как ссылка, её цель не затрагивается.
+    static func removeLeftovers(in parent: URL) {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: parent.path) else { return }
+        for name in names where name.hasSuffix(".app") {
+            guard let prefix = [backupPrefix, updatePrefix].first(where: { name.hasPrefix($0) }),
+                  UUID(uuidString: String(name.dropFirst(prefix.count).dropLast(4))) != nil else { continue }
+            try? fm.removeItem(at: parent.appendingPathComponent(name))
         }
     }
 }

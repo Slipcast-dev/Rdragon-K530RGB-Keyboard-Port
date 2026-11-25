@@ -17,6 +17,33 @@ func strProp(_ dev: IOHIDDevice, _ key: String) -> String? {
 }
 func hex(_ b: [UInt8]) -> String { b.map { String(format: "%02x", $0) }.joined(separator: " ") }
 
+/// research/device в репозитории определяется по пути исходника, а не по текущей папке терминала.
+/// Если утилита собрана вне репозитория — каталог в Application Support.
+func researchDirectory() -> URL {
+    var repo = URL(fileURLWithPath: #filePath)
+    for _ in 0..<5 { repo.deleteLastPathComponent() } // main.swift → k530diag → Sources → k530diag → tools → корень
+    let device = repo.appendingPathComponent("research/device", isDirectory: true)
+    var isDirectory: ObjCBool = false
+    if FileManager.default.fileExists(atPath: device.path, isDirectory: &isDirectory), isDirectory.boolValue { return device }
+    return FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/K530Lighting/diag", isDirectory: true)
+}
+
+/// Без резервной копии запись в клавиатуру не начинается.
+func saveBackupOrExit(_ profiles: [[UInt8]]) -> String {
+    let directory = researchDirectory()
+    let url = directory.appendingPathComponent("profiles-backup-\(Int(Date().timeIntervalSince1970)).txt")
+    let text = profiles.enumerated().map { "профиль \($0.offset + 1): " + hex($0.element) }.joined(separator: "\n") + "\n"
+    do {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try text.write(to: url, atomically: true, encoding: .utf8)
+    } catch {
+        fputs("Не удалось сохранить резервную копию (\(url.path)): \(error.localizedDescription). Запись отменена.\n", stderr)
+        exit(7)
+    }
+    return url.path
+}
+
 func findDevices(vid: Int, pid: Int) -> [IOHIDDevice] {
     let mgr = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
     IOHIDManagerSetDeviceMatching(mgr, [kIOHIDVendorIDKey: vid, kIOHIDProductIDKey: pid] as CFDictionary)
@@ -142,52 +169,18 @@ case "read-profile":
         exit(0)
     }
     guard let d = devs.first(where: { intProp($0, "MaxOutputReportSize") == 64 }) else { fputs("Служебный интерфейс не найден.\n", stderr); exit(2) }
-    guard IOHIDDeviceOpen(d, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
+    guard let session = K530Session(device: d) else {
         fputs("IOHIDDeviceOpen не удался: нужен доступ «Мониторинг ввода» для терминала.\n", stderr); exit(3)
     }
-    final class Inbox { var items: [[UInt8]] = [] }
-    let inbox = Inbox()
-    let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: 256)
-    IOHIDDeviceRegisterInputReportCallback(d, buf, 256, { ctx, _, _, _, id, rep, len in
-        guard id == UInt32(K530Protocol.reportID) else { return }
-        let bytes = Array(UnsafeBufferPointer(start: rep, count: len))
-        Unmanaged<Inbox>.fromOpaque(ctx!).takeUnretainedValue().items.append(bytes)
-    }, Unmanaged.passUnretained(inbox).toOpaque())
-    IOHIDDeviceScheduleWithRunLoop(d, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
-
-    /// Отправка с ожиданием ответа до 1 с и до 3 попыток, как в штатной программе.
-    func exchange(_ cmd: K530Protocol.Command, _ len: UInt8, _ addr: UInt16) -> [UInt8]? {
-        let p = K530Protocol.packet(cmd, length: len, address: addr)
-        for _ in 0..<3 {
-            inbox.items.removeAll()
-            let r = IOHIDDeviceSetReport(d, kIOHIDReportTypeOutput, CFIndex(p[0]), p, p.count)
-            if r != kIOReturnSuccess { fputs(String(format: "SetReport: IOReturn 0x%08X\n", r), stderr); return nil }
-            let deadline = Date().addingTimeInterval(1.0)
-            while inbox.items.isEmpty && Date() < deadline { CFRunLoopRunInMode(.defaultMode, 0.05, false) }
-            if let raw = inbox.items.first {
-                do { return try K530Protocol.validate(response: raw, for: cmd) }
-                catch { fputs("Ответ отклонён: \(error)\n", stderr); return nil }
-            }
-        }
-        fputs("Нет ответа на команду 0x\(String(cmd.rawValue, radix: 16)).\n", stderr)
-        return nil
-    }
-
-    guard exchange(.begin, 0, 0) != nil else { exit(4) }
-    var failed = false
+    guard let profiles = session.readProfiles() else { exit(5) }
     var dump = "# Прочитано k530diag read-profile\n"
-    for i in 0..<K530Protocol.profileCount {
-        let addr = UInt16(i * K530Protocol.profileSize)
-        guard let r = exchange(.read, K530Protocol.readChunk, addr) else { failed = true; break }
-        let data = Array(r[8..<(8 + K530Protocol.profileSize)])
-        let text = "Профиль \(i + 1) (адрес \(addr)):\n" + K530Protocol.describeProfile(data)
+    for (i, data) in profiles.enumerated() {
+        let text = "Профиль \(i + 1) (адрес \(i * K530Protocol.profileSize)):\n" + K530Protocol.describeProfile(data)
         print(text); dump += text
     }
-    _ = exchange(.end, 0, 0)
-    if failed { exit(5) }
     if let path = args.drop(while: { $0 != "--save" }).dropFirst().first {
-        try? dump.write(toFile: path, atomically: true, encoding: .utf8)
-        print("Сохранено: \(path)")
+        do { try dump.write(toFile: path, atomically: true, encoding: .utf8); print("Сохранено: \(path)") }
+        catch { fputs("Не удалось сохранить \(path): \(error.localizedDescription)\n", stderr); exit(7) }
     }
 case "test-mode":
     // Временная смена режима подсветки с автоматическим возвратом: test-mode <режим> [--hold сек] [--send]
@@ -209,9 +202,7 @@ case "test-mode":
         fputs("Не удалось открыть служебный интерфейс (доступ «Мониторинг ввода»).\n", stderr); exit(3)
     }
     guard let before = session.readProfiles() else { fputs("Не удалось прочитать профили, запись отменена.\n", stderr); exit(4) }
-    let backupPath = "../../research/device/profiles-backup-\(Int(Date().timeIntervalSince1970)).txt"
-    try? before.enumerated().map { "профиль \($0.offset + 1): " + hex($0.element) }.joined(separator: "\n")
-        .write(toFile: backupPath, atomically: true, encoding: .utf8)
+    let backupPath = saveBackupOrExit(before)
     print("Резервная копия: \(backupPath)")
     let originals = before.map { $0[0] }
     guard originals.allSatisfy({ (1...18).contains(Int($0)) || $0 == 20 }) else {
@@ -249,9 +240,7 @@ case "color-scan":
     }
     guard let before = session.readProfiles() else { fputs("Не удалось прочитать профили.\n", stderr); exit(4) }
     guard before.allSatisfy({ (1...18).contains(Int($0[0])) || $0[0] == 20 }) else { fputs("Необычные режимы в профилях, отмена.\n", stderr); exit(4) }
-    let backupPath = "../../research/device/profiles-backup-\(Int(Date().timeIntervalSince1970)).txt"
-    try? before.enumerated().map { "профиль \($0.offset + 1): " + hex($0.element) }.joined(separator: "\n")
-        .write(toFile: backupPath, atomically: true, encoding: .utf8)
+    let backupPath = saveBackupOrExit(before)
     print("Резервная копия: \(backupPath)")
     signal(SIGINT) { _ in interrupted = 1 }
     func speak(_ t: String) { let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/say"); p.arguments = [t]; try? p.run() }
@@ -277,7 +266,9 @@ case "color-scan":
     if ask {
         let summary = answers.map { "режим \($0.0): \($0.1)" }.joined(separator: "\n")
         print("\nИтог:\n" + summary)
-        try? summary.write(toFile: "../../research/device/color-scan-result.txt", atomically: true, encoding: .utf8)
+        let resultURL = researchDirectory().appendingPathComponent("color-scan-result.txt")
+        do { try summary.write(to: resultURL, atomically: true, encoding: .utf8); print("Сохранено: \(resultURL.path)") }
+        catch { fputs("Не удалось сохранить итог: \(error.localizedDescription)\n", stderr) }
     }
     let ok = session.restoreHeads(before) && session.readProfiles().map { zip(before, $0).allSatisfy { Array($0.0.prefix(8)) == Array($0.1.prefix(8)) } } == true
     print(ok ? "Исходное состояние восстановлено и проверено чтением." : "ВНИМАНИЕ: восстановление не подтверждено, см. резервную копию.")

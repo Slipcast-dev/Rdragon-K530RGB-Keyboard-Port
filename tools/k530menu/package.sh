@@ -5,11 +5,21 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PROJECT_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 OUTPUT_DIR="$PROJECT_ROOT/dist"
-PRIVATE_KEY="${K530_UPDATE_PRIVATE_KEY:-$HOME/Library/Application Support/K530Lighting/ReleaseKeys/update-signing.key}"
+LEGACY_KEY="$HOME/Library/Application Support/K530Lighting/ReleaseKeys/update-signing.key"
 PUBLIC_KEY="$SCRIPT_DIR/UpdatePublicKey.txt"
 MODULE_CACHE="${SWIFT_MODULECACHE_PATH:-$SCRIPT_DIR/.build/ModuleCache}"
 
-if [ ! -r "$PRIVATE_KEY" ] || [ ! -r "$PUBLIC_KEY" ]; then
+# Источник закрытого ключа: K530_UPDATE_PRIVATE_KEY (файл или "keychain"), иначе связка ключей входа.
+# Прежний файл в Application Support поддерживается, но с предупреждением.
+if [ -n "${K530_UPDATE_PRIVATE_KEY:-}" ]; then
+  PRIVATE_KEY=$K530_UPDATE_PRIVATE_KEY
+elif [ -r "$LEGACY_KEY" ]; then
+  PRIVATE_KEY=$LEGACY_KEY
+  echo "Внимание: закрытый ключ хранится обычным файлом. Перенесите его в связку ключей: см. docs/UPDATES_RU.md." >&2
+else
+  PRIVATE_KEY=keychain
+fi
+if [ ! -r "$PUBLIC_KEY" ] || { [ "$PRIVATE_KEY" != keychain ] && [ ! -r "$PRIVATE_KEY" ]; }; then
   echo "Не найдены ключи подписи обновлений. См. docs/UPDATES_RU.md; закрытый ключ должен храниться вне проекта." >&2
   exit 1
 fi
@@ -82,22 +92,24 @@ manifest = {
 }
 (root / 'update.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 PY
-swiftc -module-cache-path "$MODULE_CACHE" -framework CryptoKit "$SCRIPT_DIR/Updates/SignUpdate.swift" -o "$WORK_DIR/sign-update"
+swiftc -module-cache-path "$MODULE_CACHE" -framework CryptoKit -framework Security "$SCRIPT_DIR/Updates/SignUpdate.swift" -o "$WORK_DIR/sign-update"
 "$WORK_DIR/sign-update" sign "$PRIVATE_KEY" "$WORK_DIR/update.json" "$WORK_DIR/update.json.sig"
 
-# Проверяем, что подпись создана именно ключом, доверенным собранному приложению.
+# Проверяем, что подпись создана ключом, доверенным собранному приложению
+# (файл может содержать несколько ключей на период их смены).
 cat > "$WORK_DIR/VerifyUpdate.swift" <<'SWIFT'
 import Foundation
 import CryptoKit
 let args = CommandLine.arguments
-let publicText = try String(contentsOfFile: args[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+let keys = try String(contentsOfFile: args[1]).split(whereSeparator: \.isNewline)
+    .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    .compactMap { Data(base64Encoded: $0) }.compactMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
 let signatureText = try String(contentsOfFile: args[3]).trimmingCharacters(in: .whitespacesAndNewlines)
-guard let publicBytes = Data(base64Encoded: publicText), let signature = Data(base64Encoded: signatureText) else {
+guard !keys.isEmpty, let signature = Data(base64Encoded: signatureText) else {
     fputs("Неверный формат публичного ключа или подписи.\n", stderr); exit(1)
 }
-let key = try Curve25519.Signing.PublicKey(rawRepresentation: publicBytes)
 let bytes = try Data(contentsOf: URL(fileURLWithPath: args[2]))
-guard key.isValidSignature(signature, for: bytes) else {
+guard keys.contains(where: { $0.isValidSignature(signature, for: bytes) }) else {
     fputs("Закрытый ключ не соответствует ключу приложения. Выпуск отменён.\n", stderr); exit(1)
 }
 SWIFT

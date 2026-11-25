@@ -23,7 +23,8 @@ enum K530Protocol {
         p[4] = length
         p[5] = UInt8(address & 0xFF)
         p[6] = UInt8(address >> 8)
-        for (i, byte) in data.prefix(56).enumerated() { p[8 + i] = byte }
+        precondition(data.count <= packetSize - 8 && Int(length) >= data.count, "данные не помещаются в пакет")
+        for (i, byte) in data.enumerated() { p[8 + i] = byte }
         let sum = p[3...].reduce(0) { $0 + Int($1) }
         p[1] = UInt8(sum & 0xFF)
         p[2] = UInt8((sum >> 8) & 0xFF)
@@ -69,8 +70,8 @@ enum K530Protocol {
         func h(_ r: ClosedRange<Int>) -> String { b[r].map { String(format: "%02x", $0) }.joined(separator: " ") }
         var s = ""
         s += "  +0  режим подсветки: \(b[0])" + ((1...18).contains(Int(b[0])) || b[0] == 20 ? "" : "  (вне известного набора 1–18, 20)") + "\n"
-        s += "  +1  [неизвестно, ожидаются значения 21–25]: \(b[1])\n"
-        s += "  +2  [неизвестно]: \(b[2])\n"
+        s += "  +1  яркость 0–4: \(b[1])\n"
+        s += "  +2  скорость 0–4 (0 — быстрее всего): \(b[2])\n"
         s += "  +3  [неизвестно, 0 или 255]: \(b[3])\n"
         s += "  +4  флаг Colourful: \(b[4])\n"
         s += String(format: "  +5…+7 цвет RGB: #%02X%02X%02X\n", b[5], b[6], b[7])

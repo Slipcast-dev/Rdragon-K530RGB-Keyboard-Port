@@ -6,7 +6,7 @@ Based on static analysis of the manufacturer's Windows software and subsequent c
 
 Preserved evidence: [USB descriptors](device/k530-usb-descriptors.en.md), [first profile read](device/profiles-read-1.txt), and [visual color check by mode](device/color-scan-result.txt). These raw device records are preserved as captured, including their Russian annotations. The manufacturer's original binaries are not included.
 
-The current implementation is in `tools/k530diag/Sources/k530diag/Protocol.swift`, `Session.swift`, and the application's HID service. Applying settings writes only +0, +1, +2, and +4…+7 to all three profiles. The local profile library does not switch the active hardware profile.
+The current implementation is in `tools/k530diag/Sources/k530diag/Protocol.swift`, `Session.swift`, and the application's HID service. Applying settings writes the first 8 bytes of each profile in one command: +0, +1, +2, and +4…+7 from the settings, and +3 rewritten with the value read from the keyboard. The local profile library does not switch the active hardware profile.
 
 ## How the code was obtained
 

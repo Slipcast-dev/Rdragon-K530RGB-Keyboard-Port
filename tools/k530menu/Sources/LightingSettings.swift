@@ -57,9 +57,9 @@ let presets = [
     Preset(name: "Фиолетовый", rgb: (128, 0, 255)), Preset(name: "Розовый", rgb: (255, 0, 255)),
     Preset(name: "Белый", rgb: (255, 255, 255)),
 ]
-/// Скорость (+2): значение 0 — быстрее всего, 4 — медленнее всего (слайдер штатной программы инвертирован). Не проверено на клавиатуре.
-let speedLevels = [(4, "1 — медленно"), (3, "2"), (2, "3"), (1, "4"), (0, "5 — быстро")]
-let brightnessLevels = [(0, "0 — выключена"), (1, "1"), (2, "2"), (3, "3"), (4, "4 — максимум")]
+/// Скорость (+2): в протоколе 0 — быстрее всего, 4 — медленнее всего (слайдер штатной программы инвертирован).
+/// Уровни яркости меню; подписи — localizedBrightnessName.
+let brightnessLevels = 0...4
 
 
 /// Яркость использует одинаковую шкалу в протоколе и UI: 0…4.
@@ -97,6 +97,13 @@ struct LightingSettings: Equatable {
         [(0, [mode]), (1, [UInt8(brightness.rounded())]),
          (2, [UInt8(5 - speed.rounded())]), (4, [colourful ? 1 : 0]),
          (5, [red, green, blue])]
+    }
+
+    /// Первые 8 байт профиля для записи одним пакетом. Байт +3 не управляется приложением
+    /// и переписывается прочитанным из клавиатуры значением без изменений.
+    func head(preserving previous: [UInt8]) -> [UInt8] {
+        [mode, UInt8(brightness.rounded()), UInt8(5 - speed.rounded()), previous.count > 3 ? previous[3] : 0,
+         colourful ? 1 : 0, red, green, blue]
     }
 
     init() {}

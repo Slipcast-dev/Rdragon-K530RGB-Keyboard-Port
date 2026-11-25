@@ -39,6 +39,32 @@ struct UpdaterTests {
         assert((try? String(contentsOf: backup)) == "old")
         rejects { _ = try UpdateInstaller.replace(source: root.appendingPathComponent("Missing.app"), destination: old) { } }
         assert((try? String(contentsOf: old)) == "new")
-        print("UpdaterTests: passed (signature, tampering, trust, URL, build, hash, OS)")
+        // Смена ключа: подпись любым из доверенных ключей принимается, посторонним — нет.
+        let next = Curve25519.Signing.PrivateKey()
+        let both = [key.publicKey.rawRepresentation, next.publicKey.rawRepresentation]
+        _ = try UpdateManifest.decodeSigned(data, signature: try next.signature(for: data), publicKeys: both)
+        rejects { _ = try UpdateManifest.decodeSigned(data, signature: try Curve25519.Signing.PrivateKey().signature(for: data), publicKeys: both) }
+        rejects { _ = try UpdateManifest.decodeSigned(data, signature: signature, publicKeys: []) }
+        let keyFile = "# текущий\n" + both.map { $0.base64EncodedString() }.joined(separator: "\n\n") + "\nнеключ\n" + Data([1, 2]).base64EncodedString() + "\n"
+        assert(UpdateManifest.trustedKeys(from: keyFile) == both)
+
+        // Неудачный запуск после замены каталога-.app возвращает прежнюю версию целиком.
+        let installed = root.appendingPathComponent("Dir.app"), candidate = root.appendingPathComponent("DirNew.app")
+        try fm.createDirectory(at: installed, withIntermediateDirectories: true)
+        try fm.createDirectory(at: candidate, withIntermediateDirectories: true)
+        try Data("old".utf8).write(to: installed.appendingPathComponent("marker"))
+        try Data("new".utf8).write(to: candidate.appendingPathComponent("marker"))
+        rejects { _ = try UpdateInstaller.replace(source: candidate, destination: installed) { throw UpdateFailure.network } }
+        assert((try? String(contentsOf: installed.appendingPathComponent("marker"))) == "old")
+
+        // Очистка удаляет только копии replace и не трогает остальное.
+        UpdateInstaller.removeLeftovers(in: root)
+        let leftovers = try fm.contentsOfDirectory(atPath: root.path)
+        assert(!leftovers.contains { $0.hasPrefix(UpdateInstaller.backupPrefix) || $0.hasPrefix(UpdateInstaller.updatePrefix) }, "\(leftovers)")
+        let decoy = root.appendingPathComponent(UpdateInstaller.backupPrefix + "not-a-uuid.app")
+        try Data().write(to: decoy)
+        UpdateInstaller.removeLeftovers(in: root)
+        assert(fm.fileExists(atPath: decoy.path) && fm.fileExists(atPath: old.path) && fm.fileExists(atPath: installed.path))
+        print("UpdaterTests: passed (signature, tampering, trust, key rotation, URL, build, hash, OS, rollback, cleanup)")
     }
 }

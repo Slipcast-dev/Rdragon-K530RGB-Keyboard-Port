@@ -66,7 +66,7 @@ The repository is currently private. The application accesses GitHub without aut
 
 The automatic cycle described below is available when the release is accessible to the client at the configured HTTPS URLs.
 
-The latest stable release is checked 30 seconds after launch and every 6 hours. A manual check is also available. “Download” starts authenticity verification, downloading, installation, and restart; “Later” postpones the prompt for one day. The bottom status row shows the current stage, and a separate indicator shows download progress.
+The latest stable release is checked 30 seconds after launch and every 6 hours. The background check does not open a window: a newer version appears in the panel status row, and the menu bar icon menu shows “Install Version…”. A manual check offers “Download” (authenticity verification, downloading, installation, and restart) or “Later”. The bottom status row shows the current stage, and a separate indicator shows download progress.
 
 Only archives with a valid signature and checksum are installed automatically. The application folder must be writable by the user. If installation in the system Applications folder is unavailable, use `~/Applications`; the updater does not automatically request administrator privileges. See [the update guide](UPDATES_EN.md).
 

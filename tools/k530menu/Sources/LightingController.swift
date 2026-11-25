@@ -54,7 +54,8 @@ final class LightingDeviceService {
                 throw DeviceError("Необычные значения профилей: запись отменена.", "Unexpected profile values: write canceled.")
             }
             try backup(before)
-            guard session.writeFields(settings.fields) else {
+            // Одна запись 8 байт на профиль вместо отдельной команды на каждое поле.
+            guard session.writeHeads(before.map { settings.head(preserving: $0) }) else {
                 throw DeviceError("Ошибка записи. Часть настроек могла измениться; перечитайте устройство.", "Write failed. Some settings may have changed; read the device again.")
             }
         case .restore:
@@ -123,6 +124,8 @@ final class LightingController: ObservableObject {
     private var hasStoredProfiles = false
     private let service = LightingDeviceService()
     private var generation = 0
+    /// Чтение, отложенное из-за незавершённой операции (например, клавиатуру переподключили во время записи).
+    private var pendingRefresh = false
     private var saved: LightingSettings?
     var hasChanges: Bool { saved != draft }
     var profiles: [LightingProfile] { profileDocument.profiles }
@@ -165,7 +168,9 @@ final class LightingController: ObservableObject {
     func createProfile() {
         guard !busy, !updaterBusy() else { return }
         profileDrafts[selectedProfileID] = draft
-        let number = profiles.count + 1
+        let names = Set(profiles.map { $0.name })
+        var number = profiles.count + 1
+        while names.contains(L("Профиль \(number)", "Profile \(number)")) { number += 1 }
         let profile = LightingProfile(name: L("Профиль \(number)", "Profile \(number)"), settings: draft)
         var document = profileDocument; document.profiles.append(profile); document.selectedID = profile.id
         guard persistProfiles(document) else { return }
@@ -194,14 +199,17 @@ final class LightingController: ObservableObject {
     var checkUpdates: () -> Void = {}
     var updaterBusy: () -> Bool = { false }
 
+    /// `busy` не сбрасывается: операция ещё может выполняться в очереди HID, и до её
+    /// завершения выход и установка обновления должны оставаться заблокированными.
     func deviceRemoved() {
-        generation += 1; connected = false; busy = false
+        generation += 1; connected = false
         statusText = AppText("Клавиатура отключена. Подключите K530 по USB.", "Keyboard disconnected. Connect the K530 over USB.")
     }
     /// Проверяется при возвращении из настроек. macOS может потребовать перезапуск
     /// процесса даже после включения переключателя — для этого есть отдельное действие.
     func refresh() {
         needsPermission = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted
+        if busy { pendingRefresh = true; return }
         run(.read)
     }
 
@@ -216,24 +224,46 @@ final class LightingController: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
     }
     func apply() { run(.apply(draft)) }
+
+    /// Быстрое меню меняет одно поле поверх состояния клавиатуры, а не отправляет весь
+    /// черновик: неприменённые правки окна остаются в черновике и в устройство не уходят.
+    func applyQuick(_ change: @escaping (inout LightingSettings) -> Void) {
+        guard connected, !busy, !updaterBusy() else { return }
+        // Без единого прочитанного состояния (профили клавиатуры различаются) черновик
+        // целиком не отправляем: синхронизация профилей — только кнопкой «Применить».
+        guard var settings = saved else {
+            statusText = AppText("Профили клавиатуры различаются. Используйте «Применить» в окне.",
+                                 "Hardware profiles differ. Use Apply in the window.")
+            return
+        }
+        change(&settings)
+        run(.apply(settings), preserveDraft: true) { [weak self] in
+            guard let self = self else { return }
+            change(&self.draft)
+        }
+    }
     func restore() { run(.restore) }
 
-    private func run(_ action: LightingDeviceService.Action) {
+    private func run(_ action: LightingDeviceService.Action, preserveDraft forcePreserve: Bool = false,
+                     onSuccess: @escaping () -> Void = {}) {
         guard !busy, !updaterBusy() else { return }
         let operationGeneration = generation
         let preserveDraft: Bool
         if case .read = action { preserveDraft = hasStoredProfiles || hasUnsavedProfileChanges || (saved != nil && hasChanges) }
-        else { preserveDraft = false }
+        else { preserveDraft = forcePreserve }
         busy = true; error = false
         statusText = AppText("Обмен с клавиатурой…", "Communicating with the keyboard…")
         service.perform(action) { [weak self] result in
-            guard let self = self, self.generation == operationGeneration else { return }
+            guard let self = self else { return }
             self.busy = false
+            defer { if self.pendingRefresh { self.pendingRefresh = false; self.refresh() } }
+            guard self.generation == operationGeneration else { return }
             switch result {
             case .success(let snapshot):
                 self.connected = true; self.canRestore = snapshot.canRestore
                 self.saved = snapshot.settings
                 if let settings = snapshot.settings, !preserveDraft { self.draft = settings }
+                onSuccess()
                 if case .apply = action { self.statusText = AppText("Настройки сохранены в клавиатуре", "Settings saved to the keyboard") }
                 else if case .restore = action { self.statusText = AppText("Исходное состояние восстановлено", "Initial state restored") }
                 else { self.statusText = snapshot.message }

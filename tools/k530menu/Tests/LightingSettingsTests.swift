@@ -24,6 +24,12 @@ struct LightingSettingsTests {
         state.mode = 4; precondition(!state.usesColor)
         state.mode = 5; precondition(state.usesColor)
         state.brightness = 0; precondition(state.fields.first(where: { $0.offset == 1 })!.data == [0])
+        // Голова профиля для записи одним пакетом: байт +3 берётся из клавиатуры, остальные совпадают с fields.
+        let device: [UInt8] = [20, 4, 2, 0xAB, 255, 255, 0, 0, 9]
+        let head = state.head(preserving: device)
+        precondition(head.count == 8 && head[3] == 0xAB)
+        for field in state.fields { precondition(Array(head[field.offset..<(field.offset + field.data.count)]) == field.data) }
+        precondition(LightingSettings(profile: head) == state)
         print("LightingSettings: все проверки пройдены")
     }
 }

@@ -16,7 +16,8 @@ if [ "${1:-}" = "universal" ]; then
   lipo -create .build/k530menu-x86_64 .build/k530menu-arm64 -output .build/K530Lighting-universal
   mv -f .build/K530Lighting-universal "$APP/Contents/MacOS/K530Lighting"
 else
-  swiftc -module-cache-path "$MODULE_CACHE" -Onone $SH/Protocol.swift $SH/Session.swift Sources/*.swift -o .build/K530Lighting-native
+  # Оптимизированная сборка: именно она попадает в ~/Applications по "./build.sh install".
+  swiftc -module-cache-path "$MODULE_CACHE" -O $SH/Protocol.swift $SH/Session.swift Sources/*.swift -o .build/K530Lighting-native
   mv -f .build/K530Lighting-native "$APP/Contents/MacOS/K530Lighting"
 fi
 # Иконки (приложение и строка меню) из исходной PNG-эмблемы

@@ -38,19 +38,29 @@ final class K530Session {
     /// Отправка с ожиданием ответа до 1 с и до 3 попыток, как в штатной программе. Возвращает проверенный ответ.
     func exchange(_ cmd: K530Protocol.Command, length: UInt8 = 0, address: UInt16 = 0, data: [UInt8] = []) -> [UInt8]? {
         let p = K530Protocol.packet(cmd, length: length, address: address, data: data)
-        for _ in 0..<3 {
+        for attempt in 0..<3 {
             inbox.items.removeAll()
             let r = IOHIDDeviceSetReport(dev, kIOHIDReportTypeOutput, CFIndex(p[0]), p, p.count)
             if r != kIOReturnSuccess { fputs(String(format: "SetReport: IOReturn 0x%08X\n", r), stderr); return nil }
             let deadline = Date().addingTimeInterval(1.0)
             while inbox.items.isEmpty && Date() < deadline { CFRunLoopRunInMode(.defaultMode, 0.05, false) }
             if let raw = inbox.items.first {
+                // После повтора принятый ответ мог относиться к прошлой попытке, а ответ
+                // на эту — прийти позже и попасть в следующую команду (эхо адреса в ответе
+                // не подтверждено). Дожидаемся и отбрасываем возможный дубль.
+                if attempt > 0 { drain(until: deadline) }
                 do { return try K530Protocol.validate(response: raw, for: cmd) }
                 catch { fputs("Ответ отклонён: \(error)\n", stderr); return nil }
             }
         }
         fputs("Нет ответа на команду 0x\(String(cmd.rawValue, radix: 16)).\n", stderr)
         return nil
+    }
+
+    /// Обрабатывает входящие отчёты до срока или до второго ответа, затем очищает очередь.
+    private func drain(until deadline: Date) {
+        while inbox.items.count < 2 && Date() < deadline { CFRunLoopRunInMode(.defaultMode, 0.05, false) }
+        inbox.items.removeAll()
     }
 
     /// Читает три профиля (begin → read×3 → end) и возвращает по 42 байта каждого.
@@ -94,7 +104,14 @@ final class K530Session {
         return ok
     }
 
-    /// Возвращает первые 8 байт каждого профиля (режим, яркость, скорость, +3, флаг цвета, RGB) к сохранённым значениям.
+    /// Записывает первые 8 байт каждого профиля (режим, яркость, скорость, +3, флаг цвета, RGB) одним пакетом на профиль.
+    /// Используется и для применения настроек, и для возврата к сохранённым значениям.
+    func writeHeads(_ heads: [[UInt8]]) -> Bool {
+        guard heads.count == K530Protocol.profileCount, heads.allSatisfy({ $0.count >= 8 }) else { return false }
+        return restoreHeads(heads)
+    }
+
+    /// Возвращает первые 8 байт каждого профиля к сохранённым значениям.
     func restoreHeads(_ before: [[UInt8]]) -> Bool {
         guard exchange(.begin) != nil else { return false }
         var ok = true
