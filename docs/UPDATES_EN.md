@@ -4,13 +4,13 @@
 
 ## Access to releases
 
-The repository is private. `AppUpdater` accesses the GitHub API and release assets through URLSession without authentication, so the current implementation cannot retrieve private releases. Install those updates manually from Releases using an account with access. A 404 response does not establish that no new private release exists.
+The repository is public. `AppUpdater` accesses the GitHub API and release assets through URLSession without authentication. If the repository becomes private again, GitHub answers 404 and the automatic check can no longer see releases; the app reports this in its status row.
 
-An Ed25519 signature authenticates an archive but does not grant access to GitHub. Never embed the owner's access token in the `.app`. Automatic delivery would require a separately configured channel accessible to the client, or user authentication; the current code implements neither. Repository visibility is a separate decision for its owner.
+An Ed25519 signature authenticates an archive independently of GitHub access. Never embed the owner's access token in the `.app`.
 
 ## Behavior
 
-`AppUpdater` checks the latest stable GitHub Release 30 seconds after launch, then every 6 hours. Network operations run in the background. The background check never shows a modal window or takes focus: a newer tag, such as `v0.4.0`, is shown in the panel status row, and the menu bar icon menu replaces “Check for Updates…” with “Install Version…”. Only a manual check shows the “Download” / “Later” dialog. Keyboard settings remain unchanged during the check.
+`AppUpdater` checks the latest stable GitHub Release 30 seconds after launch, then every 6 hours. Network operations run in the background. The background check never shows a modal window or takes focus: a newer tag, such as `v1.0.0`, is shown in the panel status row, and the menu bar icon menu replaces “Check for Updates…” with “Install Version…”. Only a manual check shows the “Download” / “Later” dialog. Keyboard settings remain unchanged during the check.
 
 After consent: verify the manifest signature → download with a percentage when the server reports its size → verify SHA-256 → extract → verify the bundle and code signature → install → launch the new version and quit the old process. Stages without a known percentage show an indeterminate indicator and operation text. Additional checks during a download are prevented.
 
@@ -22,7 +22,7 @@ If the trusted key is missing, an explanation is displayed and the release page 
 
 Installation does not change firmware or delete local profiles in Application Support. Normal quitting is blocked during downloading and installation; successful replacement permits the intentional quit used for restart. The old bundle is retained beside the application as a hidden `.K530Lighting-backup-UUID.app`. A failed move or launch command restores the old bundle using renames within one folder only. Success from `/usr/bin/open -n` confirms that macOS accepted the launch request, not that the new version cannot crash afterward. If it does crash, the backup `.app` can be launched manually. After the new version has run for 30 seconds, it removes hidden `.K530Lighting-backup-UUID.app` and unfinished `.K530Lighting-update-UUID.app` copies in its folder.
 
-## Packaging the current 0.4.0 release
+## Packaging the current 1.0.0 release
 
 From the repository root:
 
@@ -30,11 +30,11 @@ From the repository root:
 ./tools/k530menu/package.sh
 ```
 
-The script runs a universal build, verifies the bundle signature, and creates `dist/K530Lighting-0.4.0-macOS-universal.dmg` containing the application and an Applications link. It also creates the update ZIP, `SHA256SUMS`, `update.json`, and `update.json.sig`. The manifest signature is checked with the public key from the built application. Missing or mismatched keys abort the release; existing final artifacts are not replaced with unsigned files.
+The script runs a universal build, verifies the bundle signature, and creates `dist/K530Lighting-1.0.0-macOS-universal.dmg` containing the application and an Applications link. It also creates the update ZIP, `SHA256SUMS`, `update.json`, and `update.json.sig`. The manifest signature is checked with the public key from the built application. Missing or mismatched keys abort the release; existing final artifacts are not replaced with unsigned files.
 
 By default, the private key is read from the login keychain (service `dev.slipcast.k530.update-signing`). `K530_UPDATE_PRIVATE_KEY` selects a key file or the value `keychain`. The legacy file `~/Library/Application Support/K530Lighting/ReleaseKeys/update-signing.key` is still accepted, with a warning. `SWIFT_MODULECACHE_PATH` selects the Swift module cache. The private key is never included in archives. `dist/` and `.build/` are excluded from Git.
 
-Packaging is local and does not publish the files: the manifest URL becomes usable only after the files are attached to the stable GitHub Release `v0.4.0`. Automatic updates need the ZIP; the DMG is for manual installation.
+Packaging is local and does not publish the files: the manifest URL becomes usable only after the files are attached to the stable GitHub Release `v1.0.0`. Automatic updates need the ZIP; the DMG is for manual installation.
 
 ## Preparing signed releases
 
@@ -51,17 +51,17 @@ Packaging is local and does not publish the files: the manifest URL becomes usab
 3. Build the application with increased `CFBundleShortVersionString` and numeric `CFBundleVersion` values. The manifest version must match the GitHub tag without `v`; the build number must strictly increase. Put `K530Lighting.app` at the root of the ZIP:
 
    ```sh
-   ditto -c -k --sequesterRsrc --keepParent tools/k530menu/.build/K530Lighting.app K530Lighting-0.4.0-macOS-universal.zip
-   shasum -a 256 K530Lighting-0.4.0-macOS-universal.zip
+   ditto -c -k --sequesterRsrc --keepParent tools/k530menu/.build/K530Lighting.app K530Lighting-1.0.0-macOS-universal.zip
+   shasum -a 256 K530Lighting-1.0.0-macOS-universal.zip
    ```
 
 4. Create `update.json` with the real SHA-256 and the archive URL for the intended release:
 
    ```json
    {
-     "version": "0.4.0",
-     "build": 7,
-     "archive": "https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/download/v0.4.0/K530Lighting-0.4.0-macOS-universal.zip",
+     "version": "1.0.0",
+     "build": 8,
+     "archive": "https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/download/v1.0.0/K530Lighting-1.0.0-macOS-universal.zip",
      "sha256": "REPLACE_WITH_64_HEXADECIMAL_CHARACTERS",
      "minimumSystemVersion": "11.0"
    }

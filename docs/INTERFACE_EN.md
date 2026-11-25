@@ -1,6 +1,6 @@
 [Русский](INTERFACE_RU.md) | **English**
 
-# K530 Lighting 0.4.0 interface
+# K530 Lighting 1.0.0 interface
 
 The application interface and built-in help support Russian and English; this is the English developer guide.
 

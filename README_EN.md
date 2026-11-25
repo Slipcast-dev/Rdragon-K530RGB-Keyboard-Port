@@ -4,13 +4,13 @@
 
 # K530 Lighting
 
-A native macOS app for controlling **Redragon K530 RGB / Draconic** lighting over USB (`0C45:5004`, Sonix). Current version: **0.4.0**, macOS 11+, with one universal installer for **Intel and Apple Silicon**.
+A native macOS app for controlling **Redragon K530 RGB / Draconic** lighting over USB (`0C45:5004`, Sonix). Current version: **1.0.0**, macOS 11+, with one universal installer for **Intel and Apple Silicon**.
 
 This is an unofficial project and is not affiliated with Redragon. The protocol was reverse-engineered from the vendor software and tested on one keyboard; other hardware revisions may differ. The interface, built-in help, and repository documentation are available in Russian and English. The RU/EN button beside Settings changes the language immediately and remembers the choice across launches.
 
 ## Installation
 
-1. Open the [latest release](https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/latest) and download `K530Lighting-0.4.0-macOS-universal.dmg`. Access to a private repository requires permission and a GitHub login.
+1. Open the [latest release](https://github.com/Slipcast-dev/Rdragon-K530RGB-Keyboard-Port/releases/latest) and download `K530Lighting-1.0.0-macOS-universal.dmg`.
 2. Quit the old copy, drag `K530Lighting.app` from the disk image to Applications, and eject the image.
 3. Open the app. The build is ad-hoc signed and is not notarized; use the standard macOS Open action for an app you trust.
 4. Connect the keyboard with a **USB cable**, allow **Input Monitoring** in System Settings, and restart the app. You may need to grant this permission again after an update.
@@ -23,6 +23,7 @@ The ZIP contains the same universal `.app` in an alternative package. For troubl
 - 19 effects, brightness levels 0–4, and five animation speed levels.
 - Preset colors, HEX input, the macOS color picker, and multicolor mode.
 - Named local profiles with separate saved settings and drafts.
+- The menu bar quick menu changes only the chosen effect or brightness and never sends unsaved window edits.
 - Preview changes before writing them with Apply; settings are read back to verify the write.
 - Restore the initial state and create a backup before the first write.
 - A Dock icon while the main panel is open; continued operation in the menu bar after closing it.
@@ -37,7 +38,7 @@ App profiles are stored on the Mac. Apply writes the selected settings to **all 
 - Effects 4, 11, 12, 17, 18, and 20 use their own palettes; color selection is disabled for them.
 - The preview shows the overall color, not an exact simulation of the hardware animation.
 - The arm64 build is included; full acceptance testing on physical Apple Silicon hardware is still required.
-- The background updater checks Ed25519 signatures and SHA-256, displays progress, and restarts the app. **While the repository is private, the current unauthenticated updater cannot access its releases**; download updates manually through GitHub. No access token is bundled with the app. [Details](docs/UPDATES_EN.md).
+- The background updater checks Ed25519 signatures and SHA-256, displays progress, and restarts the app. A new version is shown in the panel status row and the menu bar icon menu; the install prompt opens only when the user asks for it. No access token is bundled with the app. [Details](docs/UPDATES_EN.md).
 
 [Completed checks and remaining limitations](docs/VALIDATION_EN.md).
 

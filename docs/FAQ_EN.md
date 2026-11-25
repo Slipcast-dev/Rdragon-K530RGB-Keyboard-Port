@@ -8,7 +8,7 @@ Click RU/EN beside the gear in the panel header. Both controls are 36 × 36. The
 
 ## What is this application?
 
-K530 Lighting 0.4.0 is a macOS menu bar application for controlling Redragon K530 RGB lighting (USB `0C45:5004`). It is unofficial and is not affiliated with Redragon. It does not modify firmware, macros, or key mappings.
+K530 Lighting 1.0.0 is a macOS menu bar application for controlling Redragon K530 RGB lighting (USB `0C45:5004`). It is unofficial and is not affiliated with Redragon. It does not modify firmware, macros, or key mappings.
 
 ## What do I need?
 
@@ -18,7 +18,7 @@ K530 Lighting 0.4.0 is a macOS menu bar application for controlling Redragon K53
 
 ## How do I install it?
 
-1. Open `dist/K530Lighting-0.4.0-macOS-universal.dmg` or the downloaded disk image for that release.
+1. Open `K530Lighting-1.0.0-macOS-universal.dmg` from Releases or the downloaded disk image for that release.
 2. Quit the running copy: right-click the menu bar icon and choose “Quit K530 Lighting”.
 3. Drag `K530Lighting.app` to Applications, eject the disk image, and launch the installed copy from Applications.
 4. The build is ad-hoc signed and is not notarized. On first launch, use macOS's normal Open action for an application you trust; do not disable system protections.
@@ -62,9 +62,7 @@ Check the USB cable, port, and connection mode. In `system_profiler SPUSBDataTyp
 
 ## How do updates work?
 
-The repository is currently private. The application accesses GitHub without authentication and cannot retrieve private releases. Download updates manually from Releases while signed in to an account with access. The application contains no access tokens. A signed archive does not itself grant access to private files.
-
-The automatic cycle described below is available when the release is accessible to the client at the configured HTTPS URLs.
+The application checks public GitHub releases without authentication and contains no access tokens. Only archives authenticated by the bundled key are installed.
 
 The latest stable release is checked 30 seconds after launch and every 6 hours. The background check does not open a window: a newer version appears in the panel status row, and the menu bar icon menu shows “Install Version…”. A manual check offers “Download” (authenticity verification, downloading, installation, and restart) or “Later”. The bottom status row shows the current stage, and a separate indicator shows download progress.
 

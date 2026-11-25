@@ -42,8 +42,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleExecutable</key><string>K530Lighting</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.4.0</string>
-  <key>CFBundleVersion</key><string>7</string>
+  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>8</string>
   <key>CFBundleDevelopmentRegion</key><string>ru</string>
   <key>CFBundleLocalizations</key><array><string>ru</string><string>en</string></array>
   <key>LSMinimumSystemVersion</key><string>11.0</string>

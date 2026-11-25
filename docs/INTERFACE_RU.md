@@ -1,6 +1,6 @@
 **Русский** | [English](INTERFACE_EN.md)
 
-# Интерфейс K530 Lighting 0.4.0
+# Интерфейс K530 Lighting 1.0.0
 
 ## Архитектура
 

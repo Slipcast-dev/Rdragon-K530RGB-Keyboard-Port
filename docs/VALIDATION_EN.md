@@ -4,7 +4,7 @@
 
 ## Current release
 
-**0.4.0, build 7**, November 14, 2026. The interface and built-in help now support Russian and English. The language button sits beside the gear; the selected language persists across launches.
+**1.0.0, build 8**, November 26, 2026. A release based on the code audit: more robust updates (data race, rollback, backup cleanup, multiple trusted keys, keychain signing), settings applied with one 8-byte write per profile, a quick menu that no longer sends the draft, protection against late HID replies, and a mandatory backup in `k530diag`.
 
 All five `test.sh` suites passed. Full application type checking and independent static review completed. The x86_64 + arm64 universal build, signature, DMG, copying the app from the image, version/build, both FAQ files and RU/EN installation instructions, bundle language metadata, and checksums were verified. Publication is confirmed separately.
 
@@ -43,6 +43,6 @@ Check the following on supported Macs before a release:
 - Dock appearance when opening the panel, disappearance after closing, and reopening from the menu bar.
 - Command+W for the main window and help, left/right icon clicks, and quick settings.
 - Permission grant/denial, USB reconnection, sleep/wake, applying settings, and restoring initial state.
-- The complete update cycle between two signed releases accessible to the client: postponement, download, network failure, installation, and live restart.
+- The complete update cycle between two signed releases accessible to the client: manual check, download, network failure, installation, and live restart.
 
-Unit tests do not establish that these acceptance checks passed. UI automation, new hardware writes, and the complete network update cycle were not performed while preparing the current documentation. For a private GitHub repository, the current unauthenticated client cannot retrieve releases; see [the update guide](UPDATES_EN.md).
+Unit tests do not establish that these acceptance checks passed. UI automation, new hardware writes, and the complete network update cycle were not performed while preparing the current documentation. The mechanism is described in [the update guide](UPDATES_EN.md).
